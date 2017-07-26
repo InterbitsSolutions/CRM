@@ -1,0 +1,35 @@
+@extends('layouts.app')
+
+@section('page_title', 'Buckets')
+
+@section('content')
+
+
+<table class="table">
+  <thead>
+    <tr>
+      
+      <th>Bucket Name</th>
+      <th></th>
+      
+    </tr>
+  </thead>
+  <tbody>
+  @foreach($contents['Buckets'] as $content)	
+  
+    <tr>     
+      <td>{{ $content['Name'] }}</td>
+      <td><a href="#" class="btn btn-primary">Duplicate</a></td>
+    </tr>
+    
+ @endforeach
+  </tbody>
+</table>
+
+
+
+
+
+
+
+@endsection

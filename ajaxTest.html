@@ -1,0 +1,29 @@
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script>
+    $(document).ready(function(){
+        var pid = 5486;
+        $.ajax({
+            type: "GET",
+            dataType: 'JSON',
+            url: 'http://ec2-54-214-231-57.us-west-2.compute.amazonaws.com/crm/public/get-pid-phone',
+            data: 'pid='+pid,
+            async: false,
+            success: function (response) {
+                alert(response.pid_phone);
+
+                if(response.type=='success')
+                {
+                    return phoneNumber = response.pid_phone;
+                }
+                else
+                {
+                    return  phoneNumber = "01 82 88 89 29";
+                }
+            },
+            error: function () {
+                alert('Error occured');
+                //return  phoneNumber = "01 82 88 89 29";
+            }
+        });
+    });
+</script>

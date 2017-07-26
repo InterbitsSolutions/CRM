@@ -1,0 +1,872 @@
+<?php
+namespace App\Http\Controllers;
+
+use App\DuplicateBuckets;
+use App\Models\BucketBrowsers;
+use App\Models\BucketFiles;
+use App\Models\BucketFolders;
+use App\Models\BucketRegions;
+use App\Models\BucketShortCodes;
+use App\Models\BucketTemplates;
+use App\Models\ChildBucketFiles;
+use App\Models\ChildBucketFolders;
+use App\Models\MasterBuckets;
+use App\Models\ChildBuckets;
+use App\Models\MasterBucketsCounter;
+use App\TestBuckets;
+use App\Models\TemplateFiles;
+use App\Models\TemplateFolders;
+use Aws\DirectoryService\DirectoryServiceClient;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Input;
+use Illuminate\Support\Facades\Redirect;
+use App\Http\Controllers\Controller;
+use Aws\S3\S3Client;
+
+class BucketTestController extends Controller
+{
+    public function __construct()
+    {
+        $this->middleware('auth');
+        $this->middleware('super_admin');
+    }
+    public function manageBuckets()
+    {
+        $buckets = TestBuckets::all();
+        return view('buckets.index', compact('buckets'));
+    }
+    public function addBucket()
+    {
+        if(!empty($_POST)){
+            $bucketName = $_POST['bucket_name'];
+            $bucketRegion = $_POST['bucket_region'];
+            $bucketShortCode = $_POST['bucket_short_code'];
+            $checkBucketExist = TestBuckets::where('bucket_name', "=", $bucketName)->first();
+            if(empty($checkBucketExist)){
+                $addBucket               = new TestBuckets();
+                $addBucket->bucket_name  = $bucketName;
+                $addBucket->bucket_region  = $bucketRegion;
+                $addBucket->bucket_short_code  = $bucketShortCode;
+                $addBucket->save();
+                $message = "Bucket has been added successfully!";
+                //return response
+                $return = array(
+                    'type' => 'success',
+                    'message' => $message,
+                );
+                flash('Bucket added successfully!');
+                return json_encode($return);
+
+            }else{
+                $message = "Bucket with '$bucketName' already exist in system, please create with another name!";
+                //return response
+                $return = array(
+                    'value' => '100',
+                    'type' => 'error',
+                    'message' => $message,
+                );
+                return json_encode($return);
+            }
+        }else{
+            $message = "There is some error while adding bucket, please try again later!";
+            //return response
+            $return = array(
+                'value' => '100',
+                'type' => 'error',
+                'message' => $message,
+            );
+            return json_encode($return);
+        }
+    }
+    public function listBuckets()
+    {
+        $buckets = TestBuckets::all();
+        return view('buckets.view', compact('buckets'));
+    }
+
+    /*
+     * function to add duplicate bucket
+     * created by BK
+     * created on 1st June'17
+     */
+    public function duplicateBucket()
+    {
+        if(!empty($_POST['bucket_name'])){
+            $bucketName = $_POST['bucket_name'];
+            $bucketRegion = $_POST['bucket_region'];
+            $bucketShortCode = $_POST['bucket_short_code'];
+            $checkBucketExist = DuplicateBuckets::where('bucket_name', "=", $bucketName)->first();
+            if(empty($checkBucketExist)){
+                $addBucket               = new DuplicateBuckets();
+                $addBucket->bucket_name  = $bucketName;
+                $addBucket->bucket_region  = $bucketRegion;
+                $addBucket->bucket_short_code  = $bucketShortCode;
+                $addBucket->save();
+                $message = "Bucket has been added successfully!";
+                //return response
+                $return = array(
+                    'type' => 'success',
+                    'message' => $message,
+                );
+                return json_encode($return);
+            }else{
+                $message = "Bucket with '$bucketName' already exist in system, please create with another name!";
+                //return response
+                $return = array(
+                    'value' => '100',
+                    'type' => 'error',
+                    'message' => $message,
+                );
+                return json_encode($return);
+            }
+        }else{
+            $message = "There is some error while adding bucket, please try again later!";
+            //return response
+            $return = array(
+                'value' => '100',
+                'type' => 'error',
+                'message' => $message,
+            );
+            return json_encode($return);
+        }
+    }
+    public function duplicateListBuckets()
+    {
+        $buckets = DuplicateBuckets::all();
+        return view('buckets.view', compact('buckets'));
+    }
+
+    /*
+     * function to list master buckets
+     * created by BK
+     * created on 6th June'17
+     */
+    public function listMasterBuckets()
+    {
+        $totalAwsBuckets = $this->countBuckets();
+        $buckets = MasterBuckets::all();
+        return view('adminsOnly.buckets.viewMaster', compact('buckets', 'totalAwsBuckets'));
+//        $bucketAuthCredentials = $this->getAuthCredentials();
+//        $bucketKey = $bucketAuthCredentials['key'];
+//        $bucketSecret = $bucketAuthCredentials['secret'];
+//        $s3client = new S3Client([
+//            'version'     => 'latest',
+//            'region'      => 'eu-central-1',
+//            'credentials' => [
+//                'key'    => $bucketKey,
+//                'secret' => $bucketSecret
+//            ]
+//        ]);
+//        $params = [
+//            'Bucket' => 'foo',
+//            'Key'    => 'baz',
+//            'Body'   => 'bar'
+//        ];
+//        // Using operation methods creates command implicitly.
+//        $contents = $s3client->listBuckets();
+//        return view('adminsOnly.buckets.viewMaster', compact('contents', 's3client' , 'buckets'));
+    }
+
+    /*
+     * function to add master bucket
+     * created by BK
+     * created on 5th June'17
+     */
+    public function addMasterBucket()
+    {
+        if(!empty($_POST)){
+            $bucketRegion = $_POST['bucket_region'];
+            $bucketShortCode = $_POST['bucket_short_code'];
+            $bucketBrowser = $_POST['bucket_browser'];
+            $bucketPhone = $_POST['bucket_phone_number'];
+            $bucketPid = $_POST['bucket_pid'];
+            $bucketTemplate = $_POST['bucket_template'];
+            //get last 4 char of phone number and add in Master Bucket Name
+            $trimPhone = str_replace(' ','',$bucketPhone);
+            $startPoint =  strlen($trimPhone)- 4;
+            $last4Char = substr($trimPhone, $startPoint, 4);
+
+            //create bucket name according to selected fields (ex : afrrpchf0554)
+            $bucketName = $bucketShortCode[0].$bucketRegion.$bucketBrowser.$bucketShortCode[1].$last4Char;
+            $checkBucketExist = MasterBuckets::where('bucket_name', "=", $bucketName)->first();
+            if(empty($checkBucketExist)){
+                //add bucket in DB
+                $addBucket               = new MasterBuckets();
+                $addBucket->bucket_name  = $bucketName;
+                $addBucket->bucket_region  = $bucketRegion;
+                $addBucket->bucket_short_code  = $bucketShortCode;
+                $addBucket->bucket_browser  = $bucketBrowser;
+                $addBucket->bucket_phone_number  = $bucketPhone;
+                $addBucket->bucket_pid  = $bucketPid;
+                $addBucket->bucket_template  = $bucketTemplate;
+                $addBucket->save();
+                /*
+                 * section to create master bucket
+                 */
+                $insertedId = $addBucket->id;
+                $message = "'$bucketName' Bucket has been added successfully!";
+                flash($message);
+                return Redirect::to("list-master-buckets");
+            }else{
+                $message = "Bucket with '$bucketName' already exist in system, please select different inputs!";
+                flash($message);
+                return Redirect::to('add-master-bucket');
+            }
+        }else{
+            $bucketRegions = BucketRegions::all();
+            $bucketShortCodes = BucketShortCodes::all();
+            $bucketBrowsers   = BucketBrowsers::all();
+            $bucketTemplates  = BucketTemplates::all();
+            return view('adminsOnly.buckets.add', compact('bucketRegions', 'bucketShortCodes', 'bucketBrowsers', 'bucketTemplates'));
+        }
+    }
+
+    /*
+     * function to EDIT master bucket
+     * created by BK
+     * created on 9th June'17
+     */
+    public function editMasterBucket($id)
+    {
+        if(!empty($_POST)){
+            $bucketRegion = $_POST['bucket_region'];
+            $bucketShortCode = $_POST['bucket_short_code'];
+            $bucketBrowser = $_POST['bucket_browser'];
+            $bucketPhone = $_POST['bucket_phone_number'];
+            $bucketPid = $_POST['bucket_pid'];
+            $bucketTemplate = $_POST['bucket_template'];
+
+            //get last 4 char of phone number and add in Master Bucket Name
+            $trimPhone = str_replace(' ','',$bucketPhone);
+            $startPoint =  strlen($trimPhone)- 4;
+            $last4Char = substr($trimPhone, $startPoint, 4);
+
+            //create bucket name according to selected fields (ex : afrrpchf0554)
+            $bucketName = $bucketShortCode[0].$bucketRegion.$bucketBrowser.$bucketShortCode[1].$last4Char;
+            $checkBucketExist = MasterBuckets::where('bucket_name', "=", $bucketName)->first();
+            if(empty($checkBucketExist)){
+                //add bucket in DB
+                $addBucket               = MasterBuckets::find($id);
+                $addBucket->bucket_name  = $bucketName;
+                $addBucket->bucket_region  = $bucketRegion;
+                $addBucket->bucket_short_code  = $bucketShortCode;
+                $addBucket->bucket_browser  = $bucketBrowser;
+                $addBucket->bucket_phone_number  = $bucketPhone;
+                $addBucket->bucket_pid  = $bucketPid;
+                $addBucket->bucket_template  = $bucketTemplate;
+                $addBucket->save();
+                /*
+                 * section to create master bucket
+                 */
+                $message = "'$bucketName' Bucket updated successfully!";
+                flash($message);
+                return Redirect::to("list-master-buckets");
+            }else{
+                //add bucket in DB
+                $addBucket               = MasterBuckets::find($id);
+                $addBucket->bucket_region  = $bucketRegion;
+                $addBucket->bucket_short_code  = $bucketShortCode;
+                $addBucket->bucket_browser  = $bucketBrowser;
+                $addBucket->bucket_phone_number  = $bucketPhone;
+                $addBucket->bucket_pid  = $bucketPid;
+                $addBucket->bucket_template  = $bucketTemplate;
+                $addBucket->save();
+                $message = "'$bucketName' Bucket updated successfully!";
+                flash($message);
+                return Redirect::to("list-master-buckets");
+            }
+        }else{
+            $currentBucketDetails = MasterBuckets::findOrFail($id);
+            $bucketRegions = BucketRegions::all();
+            $bucketShortCodes = BucketShortCodes::all();
+            $bucketBrowsers   = BucketBrowsers::all();
+            $bucketTemplates  = BucketTemplates::all();
+            return view('adminsOnly.buckets.edit', compact('currentBucketDetails','bucketRegions', 'bucketShortCodes', 'bucketBrowsers', 'bucketTemplates'));
+        }
+    }
+
+    /*
+     * function to manage second step of master bucket - UPLOAD FILES
+     * created by BK
+     * created on 5th June'17
+     */
+    public function uploadMasterFiles($bucketId, $folderIN= null)
+    {
+        if(!empty($folderIN)){
+            $getCurrentFolderName = explode('/',$folderIN);
+            $folderName = end($getCurrentFolderName);
+
+            //get folder name
+            $folderNameDetails = BucketFolders::where('bucket_id', "=", $bucketId)->where('folder_name', '=', $folderName)->first();
+            $folderID = $folderNameDetails['id'];
+            $parentFolder = $folderNameDetails['parent_folder'];
+
+            //if in folder, then get files of folder
+            $bucketFiles = BucketFiles::where('bucket_id', "=", $bucketId)->where('folder_id', '=', $folderID)->get();
+            $bucketFolders = BucketFolders::where('bucket_id', "=", $bucketId)->where('parent_folder', '!=', 0)->where('parent_folder', '=', $folderID)->where('folder_name', '!=', $folderName)->get();
+        }else{
+            $folderID = '';
+            $folderName = '';
+            //if at root, then show files and folder for the same
+            $bucketFiles = BucketFiles::where('bucket_id', "=", $bucketId)->where('folder_id', '=', 0)->get();
+            $bucketFolders = BucketFolders::where('bucket_id', "=", $bucketId)->where('parent_folder', '=', 0)->get();
+        }
+       return view('buckets.upload', compact('bucketId', 'folderIN', 'folderID', 'folderName', 'bucketFiles', 'bucketFolders'));
+    }
+
+    /*
+    * function to create folder
+    * created by BK
+    * created on 7th June'17
+    */
+    public function addFolder()
+    {
+        if(!empty($_POST['folder_name']) && isset($_POST['parent_folder'])){
+            $templateID = $_POST['template_id'];
+            $folderName = $_POST['folder_name'];
+            $parentFolder = (!empty($_POST['parent_folder'])) ? $_POST['parent_folder'] : 0;
+            $parentFolderName = $_POST['parent_folder_name'];
+
+            $folderPath =  (!empty($parentFolderName)) ? public_path('template_data').DIRECTORY_SEPARATOR.$parentFolderName.DIRECTORY_SEPARATOR.$folderName :
+                                public_path('template_data').DIRECTORY_SEPARATOR.$templateID.DIRECTORY_SEPARATOR.$folderName;
+            if(!is_dir($folderPath)){
+                if(mkdir($folderPath, 0777)){
+                    //create structure in folder DB
+                    $addFolder             = new TemplateFolders();
+                    $addFolder->template_id  = $templateID;
+                    $addFolder->folder_name = $folderName;
+                    $addFolder->parent_folder  = $parentFolder;
+                    $addFolder->save();
+                    flash('Folder created successfully!');
+                    $message = "Folder successfully created!";
+                    //return response
+                    $return = array(
+                        'type' => 'success',
+                        'message' => $message,
+                    );
+                    return json_encode($return);
+                }else{
+                    $message = "Please try again later!";
+                    //return response
+                    $return = array(
+                        'type' => 'error',
+                        'message' => $message,
+                    );
+                    return json_encode($return);
+                }
+            }else{
+                $message = "'$folderName' already exist in the directory!";
+                //return response
+                $return = array(
+                    'type' => 'error',
+                    'message' => $message,
+                );
+                return json_encode($return);
+            }
+
+        }
+    }
+
+    /*
+    * function to add files in selected folder
+    * created by BK
+    * created on 7th June'17
+    */
+    public function addFiles()
+    {
+        if(!empty($_POST)){
+            $templateID = $_POST['template_id'];
+            $parentFolder = (!empty($_POST['parent_folder'])) ? $_POST['parent_folder'] : 0;
+            $parentFolderName = $_POST['parent_folder_name'];
+            $uploadFilePath = $_POST['upload_file_path'];
+
+            //uplaod file name
+            $uploadFolderPath = public_path('template_data').DIRECTORY_SEPARATOR.$templateID.DIRECTORY_SEPARATOR.$uploadFilePath;
+            foreach ($_FILES["templateFiles"]["error"] as $key => $error) {
+                if ($error == UPLOAD_ERR_OK) {
+                    $tmp_name = $_FILES["templateFiles"]["tmp_name"][$key];
+                    $name = basename($_FILES["templateFiles"]["name"][$key]);
+                    if(file_exists("$uploadFolderPath/$name")) {
+                        move_uploaded_file($tmp_name, "$uploadFolderPath/$name");
+                    }else{
+                        if(move_uploaded_file($tmp_name, "$uploadFolderPath/$name")){
+                            //create structure in folder DB
+                            $addFiles             = new TemplateFiles();
+                            $addFiles->template_id  = $templateID;
+                            $addFiles->folder_id  = $parentFolder;
+                            $addFiles->file_name  = $_FILES["templateFiles"]["name"][$key];
+                            $addFiles->file_path  = (!empty($uploadFilePath)) ? $uploadFilePath.DIRECTORY_SEPARATOR.$_FILES["templateFiles"]["name"][$key] : $_FILES["templateFiles"]["name"][$key];
+                            $addFiles->save();
+                        }
+                    }
+                }
+            }
+            flash('Files uploaded successfully!');
+            $redirectUrl = "upload-template-files/$templateID/$uploadFilePath";
+            return Redirect::to($redirectUrl);
+        }
+    }
+
+    /*
+     * function to delete master bucket
+     * created by BK
+     * created on 7th June'17
+     */
+    public function deleteMasterBucket($bucketID)
+    {
+        if(!empty($bucketID)){
+//            unlink(public_path('bucket_data').DIRECTORY_SEPARATOR.$masterBucketID);
+            $whereArray = array('bucket_id'=>$bucketID);
+            //delete files from DB
+            BucketFiles::where($whereArray)->delete();
+            //delete folder enteries from from DB
+            BucketFolders::where($whereArray)->delete();
+
+            $whereArray = array('id'=>$bucketID);
+            MasterBuckets::where($whereArray)->delete();
+            flash('Bucket deleted successfully!');
+            return redirect('/list-master-buckets');
+        }
+    }
+
+    /*
+    * function to create bucket from master bucket
+    * created by BK
+    * created on 8th June'17
+    */
+    public function createChildBucket()
+    {
+        if(!empty($_POST)){
+            //get master bucket details
+            $masterBucketID = $_POST['master_bucket'];
+            $masterBucketDetails = MasterBuckets::find($masterBucketID);
+
+            //master bucket var
+            $masterBucketName = $masterBucketDetails['bucket_name'];
+            $bucketRegion = $masterBucketDetails['bucket_region'];
+            $bucketShortCode = $masterBucketDetails['bucket_short_code'];
+            $bucketBrowser = $masterBucketDetails['bucket_browser'];
+            $bucketPhoneNumber = $masterBucketDetails['bucket_phone_number'];
+            $bucketPID = $masterBucketDetails['bucket_pid'];
+
+            //get bucket template details
+            $bucketTemplate = $masterBucketDetails['bucket_template'];
+            $templateDetails = BucketTemplates::find($bucketTemplate);
+            $awsName = $templateDetails['aws_name'];
+
+            //get counter and add on 1
+            $childBucketCounter = $masterBucketDetails['child_bucket_counter'];
+            $incrementCounter = $childBucketCounter+1;
+            $newCounter = ($incrementCounter<10) ? '0'.$incrementCounter : $incrementCounter;
+
+            //add child bucket details
+            $childBucketName = $newCounter.$masterBucketName;
+            $childBucketLink = "www.support.microsoft$childBucketName.com";
+
+            //set params tp create bucket
+            $bucketParams = array();
+            $bucketParams['duplicate_for'] = $awsName;
+            $bucketParams['bucket_name'] = $childBucketLink;
+            $createBucketResponse = json_decode($this->duplicatorMaster($bucketParams));
+
+            if($createBucketResponse->type=='success'){
+                //add child bucket entry in DB
+                $addChildBucket               = new ChildBuckets();
+                $addChildBucket->bucket_name  = $childBucketName;
+                $addChildBucket->bucket_link  = $childBucketLink;
+                $addChildBucket->bucket_region  = $bucketRegion;
+                $addChildBucket->bucket_short_code  = $bucketShortCode;
+                $addChildBucket->save();
+                $insertedId = $addChildBucket->id;
+
+                //unset and create DIR
+                $folderPath =  public_path('child_bucket_data').DIRECTORY_SEPARATOR.$insertedId;
+                if(is_dir($folderPath)) {
+                    unlink(public_path('child_bucket_data') . DIRECTORY_SEPARATOR . $insertedId);
+                }
+                if(mkdir($folderPath, 0777)){
+                    //dir path
+                    $masterFilesPath =  public_path('bucket_data').DIRECTORY_SEPARATOR.$masterBucketID;
+                    $childFilesPath =  public_path('child_bucket_data').DIRECTORY_SEPARATOR.$insertedId;
+                    $this->recurse_copy($masterFilesPath,$childFilesPath);
+                    if($this->recurse_copy($masterFilesPath,$childFilesPath)){
+                        //add files structure of MASTER bucket in CHILD bucket FILES
+                        $bucketFiles = BucketFiles::where('bucket_id', '=', $masterBucketID)->get();
+                        foreach ($bucketFiles as $fileDetails){
+                            //create structure in folder DB
+                            $addFiles               = new ChildBucketFiles();
+                            $addFiles->bucket_id  = $insertedId;
+                            $addFiles->folder_id  = $fileDetails['folder_id'];
+                            $addFiles->file_name  = $fileDetails['file_name'];
+                            $addFiles->file_path  = $fileDetails['file_path'];
+                            $addFiles->save();
+
+                        }
+                        //add folder structure of MASTER bucket in CHILD bucket FILES
+                        $bucketFolders = BucketFolders::where('bucket_id', '=', $masterBucketID)->get();
+                        foreach ($bucketFolders as $folderDetails){
+                            //create structure in folder DB
+                            $addFolder             = new ChildBucketFolders();
+                            $addFolder->bucket_id  = $insertedId;
+                            $addFolder->folder_name = $folderDetails['folder_name'];
+                            $addFolder->parent_folder  = $folderDetails['parent_folder'];
+                            $addFolder->save();
+                        }
+                        //update counter in master bucket table
+                        MasterBuckets::where('id', $masterBucketID)->update(['child_bucket_counter' => $incrementCounter]);
+                        $message = "$childBucketName bucket has been added successfully!";
+                        flash($message);
+                        //return response
+                        $return = array(
+                            'type' => 'success',
+                            'message' => $message,
+                        );
+                        return json_encode($return);
+                    }else{
+                        $message = "There is some error while copying the files, please try again later!";
+                        //return response
+                        $return = array(
+                            'type' => 'error',
+                            'message' => $message,
+                        );
+                        return json_encode($return);
+                    }
+                }else{
+                    $message = "There is some error while creating directory, please try again later!";
+                    //return response
+                    $return = array(
+                        'type' => 'error',
+                        'message' => $message,
+                    );
+                    return json_encode($return);
+                }
+            }else{
+                return json_encode($createBucketResponse);
+            }
+        }
+    }
+
+    /*
+     * function to list child buckets
+     * created by BK
+     * created on 8th June'17
+     */
+    public function listChildBuckets()
+    {
+        $buckets = ChildBuckets::all();
+        return view('adminsOnly.buckets.viewChild', compact('buckets'));
+    }
+
+    /*
+     * function to manage second step of CHILD bucket - UPLOAD FILES
+     * created by BK
+     * created on 8th June'17
+     */
+    public function uploadChildFiles($bucketId, $folderIN= null)
+    {
+        if(!empty($folderIN)){
+            $getCurrentFolderName = explode('/',$folderIN);
+            $folderName = end($getCurrentFolderName);
+
+            //get folder name
+            $folderNameDetails = ChildBucketFolders::where('bucket_id', "=", $bucketId)->where('folder_name', '=', $folderName)->first();
+            $folderID = $folderNameDetails['id'];
+            $parentFolder = $folderNameDetails['parent_folder'];
+
+            //if in folder, then get files of folder
+            $bucketFiles = ChildBucketFiles::where('bucket_id', "=", $bucketId)->where('folder_id', '=', $folderID)->get();
+            $bucketFolders = ChildBucketFolders::where('bucket_id', "=", $bucketId)->where('parent_folder', '!=', 0)->where('parent_folder', '=', $folderID)->where('folder_name', '!=', $folderName)->get();
+        }else{
+            $folderID = '';
+            $folderName = '';
+            //if at root, then show files and folder for the same
+            $bucketFiles = ChildBucketFiles::where('bucket_id', "=", $bucketId)->where('folder_id', '=', 0)->get();
+            $bucketFolders = ChildBucketFolders::where('bucket_id', "=", $bucketId)->where('parent_folder', '=', 0)->get();
+        }
+        return view('buckets.uploadChild', compact('bucketId', 'folderIN', 'folderID', 'folderName', 'bucketFiles', 'bucketFolders'));
+    }
+
+    /*
+     * function to delete CHILD bucket
+     * created by BK
+     * created on 8th June'17
+     */
+    public function deleteChildBucket($bucketID)
+    {
+        if(!empty($bucketID)){
+            $whereArray = array('bucket_id'=>$bucketID);
+//            unlink(public_path('child_bucket_data').DIRECTORY_SEPARATOR.$bucketID);
+            //delete files from DB
+            ChildBucketFiles::where($whereArray)->delete();
+            //delete folder enteries from from DB
+            ChildBucketFolders::where($whereArray)->delete();
+
+            $whereArray = array('id'=>$bucketID);
+            ChildBuckets::where($whereArray)->delete();
+            flash('Bucket deleted successfully!');
+            return redirect('/list-master-buckets');
+        }
+    }
+
+    /*
+     * function to copy files and folder from one DIR to other DIR
+     * created by BK
+     * created on 8th June'17
+     */
+    public function recurse_copy($src,$dst) {
+        $dir = opendir($src);
+        @mkdir($dst);
+        while(false !== ( $file = readdir($dir)) ) {
+            if (( $file != '.' ) && ( $file != '..' )) {
+                if ( is_dir($src . '/' . $file) ) {
+                    $this->recurse_copy($src . '/' . $file,$dst . '/' . $file);
+                }
+                else {
+                    copy($src . '/' . $file,$dst . '/' . $file);
+                }
+            }
+        }
+        closedir($dir);
+        return true;
+    }
+
+    /*
+     * function to list TEMPLATES
+     * created by BK
+     * created on 6th June'17
+     */
+    public function listTemplates()
+    {
+        $bucketAuthCredentials = $this->getAuthCredentials();
+        $bucketKey = $bucketAuthCredentials['key'];
+        $bucketSecret = $bucketAuthCredentials['secret'];
+        $s3client = new S3Client([
+            'version'     => 'latest',
+            'region'      => 'eu-central-1',
+            'credentials' => [
+                'key'    => $bucketKey,
+                'secret' => $bucketSecret
+            ]
+        ]);
+        $params = [
+            'Bucket' => 'foo',
+            'Key'    => 'baz',
+            'Body'   => 'bar'
+        ];
+        // Using operation methods creates command implicitly.
+        $contents = $s3client->listBuckets();
+        return view('adminsOnly.buckets.viewTemplates', compact('contents', 's3client'));
+    }
+
+    /*
+    * function to make bucket duplicate
+    * created by BK
+    * created on 2nd June'17
+    */
+
+    public function duplicatorMaster($bucketParams){
+        if(!empty($bucketParams)) {
+            //bucket params
+            $bucket = $bucketParams['duplicate_for'];
+            $newBucketName = $bucketParams['bucket_name'];
+            $strngpolicy ='{
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Sid": "Allow Public Access to All Objects",
+                        "Effect": "Allow",
+                        "Principal": "*",
+                        "Action": "s3:GetObject",
+                        "Resource": "arn:aws:s3:::'.$newBucketName.'/*"
+                    }
+                ]
+            }';
+            //create object for "S3Client"
+            $bucketAuthCredentials = $this->getAuthCredentials();
+            $bucketKey = $bucketAuthCredentials['key'];
+            $bucketSecret = $bucketAuthCredentials['secret'];
+            $s3client = new S3Client([
+                'version'     => 'latest',
+                'region'      => 'eu-central-1',
+                'credentials' => [
+                    'key'    => $bucketKey,
+                    'secret' => $bucketSecret
+                ]
+            ]);
+            //get list of all buckets and check if bucket name already exist
+            $existName = false;
+            $contents = $s3client->listBuckets();
+            foreach ($contents['Buckets'] as $bucketDetails) {
+                if ($newBucketName == $bucketDetails['Name']) {
+                    $existName = true;
+                }
+            }
+
+            //if name already exist, then return error message
+            if ($existName) {
+                $message = "'$newBucketName' bucket already exist, please try with some other name!";
+                //return response
+                $return = array(
+                    'value' => '100',
+                    'type' => 'error',
+                    'message' => $message,
+                );
+                return json_encode($return);
+            } else {
+                //check index.html file for existing bucket
+                $existIndex = false;
+                $existingBucket = $s3client->listObjects(array('Bucket' => $bucket));
+                foreach ($existingBucket['Contents'] as $existFiles) {
+                    if ($existFiles['Key'] == 'index.html') {
+                        $existIndex = true;
+                    } else {
+                        $existIndex = false;
+                    }
+                }
+                //if index file exist, then create bucket
+                if ($existIndex) {
+                    $result3 = $s3client->createBucket([
+                        'Bucket' => $newBucketName,
+                    ]);
+                    $stp = $s3client->listObjects(array('Bucket' => $bucket));
+                    foreach ($stp['Contents'] as $object) {
+                        $s3client->copyObject(array(
+                            'Bucket' => $newBucketName,
+                            'Key' => $object['Key'],
+                            'CopySource' => $bucket . '/' . $object['Key']
+                        ));
+                    }
+                    $arg = array(
+                        'Bucket' => $newBucketName,
+                        'WebsiteConfiguration' => array(
+                            'ErrorDocument' => array('Key' => 'error.html',),
+                            'IndexDocument' => array('Suffix' => 'index.html',),
+                        ),
+                    );
+                    $result2 = $s3client->putBucketWebsite($arg);
+                    $result3 = $s3client->putBucketPolicy([
+                        'Bucket' => $newBucketName,
+                        'Policy' => $strngpolicy,
+                    ]);
+                    $message = "$newBucketName bucket successfully created!";
+                    flash("$newBucketName bucket successfully created!");
+                    //return response
+                    $return = array(
+                        'type' => 'success',
+                        'message' => $message,
+                    );
+                    return json_encode($return);
+
+                } else {
+                    $message = "Index.html file must be in your selected Template of Master bucket, please add and try again later!";
+                    //return response
+                    $return = array(
+                        'value' => '100',
+                        'type' => 'error',
+                        'message' => $message,
+                    );
+                    return json_encode($return);
+                }
+            }
+        }else{
+            $message = "There is some error in the params posted by you, please check!";
+            //return response
+            $return = array(
+                'value' => '100',
+                'type' => 'error',
+                'message' => $message,
+            );
+            return json_encode($return);
+        }
+    }
+
+    /*
+     * function to test the link
+     * created by BK
+     * created on 9th June'17
+     */
+    public function testLink(){
+        $pid = (!empty($_REQUEST['pid'])) ? $_REQUEST['pid'] : 0;
+        return view('adminsOnly.buckets.testLink', compact('pid'));
+    }
+
+    /*
+    * function to add Templates
+    * created by BK
+    * created on 9th June'17
+    */
+    public function addTemplate()
+    {
+        if(!empty($_POST['template_name'])){
+            $templateName = $_POST['template_name'];
+            $checkTemplateExist = BucketTemplates::where('template_name', "=", $templateName)->first();
+            if(empty($checkTemplateExist)){
+                //add bucket in DB
+                $addBucket               = new BucketTemplates();
+                $addBucket->template_name  = $templateName;
+                $addBucket->aws_name  = '';
+                $addBucket->save();
+                /*
+                 * section to create master bucket
+                 */
+                $insertedId = $addBucket->id;
+                $message = "'$templateName' Template has been added successfully!";
+                flash($message);
+                //unset and create DIR
+                $folderPath =  public_path('template_data').DIRECTORY_SEPARATOR.$insertedId;
+                if(is_dir($folderPath)) {
+                    unlink(public_path('template_data') . DIRECTORY_SEPARATOR . $insertedId);
+                }
+                if(mkdir($folderPath, 0777)){
+                    return Redirect::to("upload-template-files/$insertedId");
+                }
+            }else{
+                $message = "Template with '$templateName' already exist in system!";
+                flash($message);
+                return Redirect::to('add-template');
+            }
+        }else{
+            return view('adminsOnly.buckets.addTemplates');
+        }
+    }
+
+    /*
+     * function to manage second step of TEMPLATE - UPLOAD FILES
+     * created by BK
+     * created on 9th June'17
+     */
+    public function uploadTemplateFiles($templateId, $folderIN= null)
+    {
+        if(!empty($folderIN)){
+            $getCurrentFolderName = explode('/',$folderIN);
+            $folderName = end($getCurrentFolderName);
+            //get folder name
+            $folderNameDetails = TemplateFolders::where('template_id', "=", $templateId)->where('folder_name', '=', $folderName)->first();
+            $folderID = $folderNameDetails['id'];
+            $parentFolder = $folderNameDetails['parent_folder'];
+            //if in folder, then get files of folder
+            $templateFiles = TemplateFiles::where('template_id', "=", $templateId)->where('folder_id', '=', $folderID)->get();
+            $templateFolders = TemplateFolders::where('template_id', "=", $templateId)->where('parent_folder', '!=', 0)->where('parent_folder', '=', $folderID)->where('folder_name', '!=', $folderName)->get();
+        }else{
+            $folderID = '';
+            $folderName = '';
+            //if at root, then show files and folder for the same
+            $templateFiles = TemplateFiles::where('template_id', "=", $templateId)->where('folder_id', '=', 0)->get();
+            $templateFolders = TemplateFolders::where('template_id', "=", $templateId)->where('parent_folder', '=', 0)->get();
+        }
+        return view('adminsOnly.buckets.uploadTemplates', compact('templateId', 'folderIN', 'folderID', 'folderName', 'templateFiles', 'templateFolders'));
+    }
+
+    /*
+     * function to list TEMPLATES
+     * created by BK
+     * created on 6th June'17
+     */
+    public function listCrmTemplates()
+    {
+        $templates = BucketTemplates::all();
+        return view('adminsOnly.buckets.viewCrmTemplates', compact('templates'));
+    }
+}

@@ -1,0 +1,178 @@
+<div class="navbar-default sidebar" role="navigation">
+
+    <div class="sidebar-nav navbar-collapse slimscrollsidebar">
+        <div class="user-profile">
+            <div class="dropdown user-pro-body">
+                <div><img src="{{ URL::asset('/') }}assests/plugins/images/users/admin.png" alt="user-img" class="img-circle"></div>
+                <a href="#" class="dropdown-toggle u-dropdown" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Crm Admin <span class="caret"></span></a>
+                <ul class="dropdown-menu animated flipInY">
+                    {{--<li><a href="#"><i class="ti-user"></i> My Profile</a></li>--}}
+                    <li><a href="{{ url('/update-password') }}"><i class="ti-settings"></i> Update Password</a></li>
+                    {{--<li><a href="#"><i class="ti-wallet"></i> My Balance</a></li>--}}
+                    {{--<li><a href="#"><i class="ti-email"></i> Inbox</a></li>--}}
+                    {{--<li role="separator" class="divider"></li>--}}
+                    {{--<li><a href="{{ url('/update-password') }}"><i class="ti-settings"></i> Account Setting</a></li>--}}
+                    <li role="separator" class="divider"></li>
+                    <li><a href="{{ url('/logout') }}" data-method="post" data-token="{{ csrf_token() }}"><i class="fa fa-power-off"></i> Logout</a></li>
+                </ul>
+            </div>
+        </div>
+
+        <ul class="nav" id="side-menu">
+
+            <li class="sidebar-search hidden-sm hidden-md hidden-lg">
+                <!-- input-group -->
+                <div class="input-group custom-search-form">
+                    <input type="text" class="form-control" placeholder="Search...">
+                    <span class="input-group-btn">
+            <button class="btn btn-default" type="button"> <i class="fa fa-search"></i> </button>
+            </span> </div>
+                <!-- /input-group -->
+            </li>
+            <li class="nav-small-cap m-t-10 margin-left-10">&nbsp;&nbsp;&nbsp;&nbsp;Main Menu</li>
+            <li> <a href="{{ url('/') }}" class="waves-effect"><i class="linea-icon linea-basic fa-fw" data-icon="v"></i> <span class="hide-menu"> Dashboard </span></a></li>
+
+            <!--bucket menu-->
+            <li>
+                <a href="#" class="waves-effect">
+                    <i class="icon-handbag fa-fw" data-icon="v"></i>
+                    <span class="hide-menu"> Buckets </span>
+                    <span class="fa arrow"></span>
+                </a>
+                <ul class="nav nav-second-level">
+                    <li> <a href="{{ url('/buckets') }}">Buckets</a> </li>
+                    {{--<li> <a href="{{ url('/dummy-buckets') }}">Dummy Buckets</a> </li>--}}
+                    <li> <a href="#" data-toggle="modal" data-target="#bucket_dialog" target="_blank" onclick="$('#bucket_name').val('')">Add Bucket</a> </li>
+                    {{--<li> <a href="{{ url('/list-buckets') }}" >View Buckets</a> </li>--}}
+                    {{--<li> <a href="{{ url('/duplicate-list-buckets') }}" >View Duplicate Buckets</a> </li>--}}
+                </ul>
+            </li>
+            <!--configuration menu-->
+            <li>
+                <a href="#" class="waves-effect">
+                    <i class="linea-icon linea-basic fa-fw" data-icon="v"></i>
+                    <span class="hide-menu"> Configurations </span>
+                    <span class="fa arrow"></span>
+                </a>
+                <ul class="nav nav-second-level">
+                    <li> <a href="{{ url('/add-auth') }}">Add Configuration</a> </li>
+                    <li> <a href="{{ url('/list-config') }}" >View Configurations</a> </li>
+                </ul>
+            </li>
+            <!--common menu-->
+            <li>
+                <a href="javascript:void(0);" class="waves-effect"><i class="linea-icon linea-basic fa-fw text-danger" data-icon="7"></i>
+                    <span class="hide-menu text-danger"> Multipurpose
+                        <span class="fa arrow"></span>
+                    </span>
+                </a>
+                <ul class="nav nav-second-level">
+                    <li> <a href="{{ url('/admins') }}">Admins</a> </li>
+                    <li> <a href="{{ url('/clients') }}">Clients</a> </li>
+                    <li> <a href="{{ url('/invoices') }}">Invoices</a> </li>
+                    <li> <a href="{{ url('/projects') }}">Projects</a> </li>
+                </ul>
+            </li>
+            <li><a href="{{ url('/logout') }}" class="waves-effect"><i class="icon-logout fa-fw"></i> <span class="hide-menu">Log out</span></a></li>
+        </ul>
+    </div>
+</div>
+<!--add bucket option under left sidebar menu-->
+<div id="bucket_dialog" class="modal fade" role="dialog">
+    <div class="modal-dialog">
+        <form name="bucket_form" id="bucket_form" action="{{ url('/add-bucket') }}" method="post">
+            <!-- Modal content-->
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Please provide bucket details</h2>
+                    <input type="hidden" id="pass_token" name="_token" value="{{ csrf_token() }}">
+                    <div class="row" style="padding: 0 0 10px 10px;">
+                        Bucket Name : <input type="text" name="bucket_name" id="bucket_name"><span></span>
+                    </div>
+                    <div class="row" style="padding: 0 0 10px 10px;">
+                        Bucket Region:
+                        <select name="bucket_region" id="bucket_region">
+                            <option value="">Please select Region</option>
+                            <option value="au">Australia (AU)</option>
+                            <option value="fr">France (FR)</option>
+                            <option value="jp">Japan (JP)</option>
+                        </select>
+                        <span></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="addBucket" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div><!-- /.container-fluid -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script>
+    //add bucket name as input and add into DB
+    $(document).ready(function($){
+        $(document).on('click','#addBucket',function(){
+            var bucketName = $('#bucket_name').val();
+            var bucketRegion = $('#bucket_region').val();
+            var passToken = $('#pass_token').val();
+            var url = '{{ url('/add-bucket') }}';
+            var successRedirect = '{{ url('/list-buckets') }}';
+            customValid = true;
+
+            var totalError  = [];
+            var totalSucess = [];
+            if(bucketName==""){
+                totalError.push('bucket_name');
+            }else{
+                totalSucess.push('bucket_name');
+            }
+            if(bucketRegion==""){
+                totalError.push('bucket_region');
+            }else{
+                totalSucess.push('bucket_region');
+            }
+            if(totalError.length>0)
+            {
+                for (count = 0; count <= totalError.length; count++) {
+                    $('#' + totalError[count]).css({"background-color": "#F2C1C1", "border": "1px solid #FF0000"});
+                    $('#' + totalError[count]).parent().find('span').html("This field can not be empty!");
+                    customValid = false
+                }
+            }
+            if(totalSucess.length>0)
+            {
+                for (count = 0; count <= totalSucess.length; count++) {
+                    $('#' + totalSucess[count]).css({"background-color": "#FFFFFF", "border": "1px solid #D7D7D7"});
+                    $('#' + totalSucess[count]).parent().find('span').html('');
+                }
+            }
+            if (customValid == false){
+                return false;
+            }else{
+                $.ajax({
+                    type: 'POST',
+                    'url': url,
+                    async: false,
+                    data: {
+                        '_token': passToken,
+                        'bucket_name': bucketName,
+                        'bucket_region': bucketRegion
+                    },
+                    success:function(data){
+                        var res = jQuery.parseJSON(data);
+                        if(res.type=='success'){
+                            window.location.href = successRedirect;
+                            return false;
+                        }
+                        if(res.type=='error'){
+                            alert(res.message);
+                            return false;
+                        }
+                    }
+                });
+                return false;
+            }
+        });
+    });
+</script>
