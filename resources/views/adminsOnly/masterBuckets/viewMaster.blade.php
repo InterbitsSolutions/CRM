@@ -61,7 +61,7 @@
                                 <td>{{ (!empty($bucket->bucket_pid)) ? $bucket->bucket_pid : "-"  }}</td>
                                 <td>{{ (!empty($bucket->bucket_phone_number)) ? trim($bucket->bucket_phone_number) : "-"  }}</td>
                                 <td>{{ (!empty($bucket->bucket_analytics_id)) ? $bucket->bucket_analytics_id : "-"  }}</td>
-                                <td>{{ (!empty($bucket->ringba_code)) ? $bucket->ringba_code : "-"  }}</td>
+                                <td>{{ (!empty($bucket->ringba_code)) ? $bucket->ringba_code : "N/A"  }}</td>
                                 <td class="record_actions">
                                     {{--<a href="#" data-toggle="modal" data-target="#copy_master_bucket" target="_blank" onclick="$('#copyAwsServer').val('');$('#fromMasterBucket').val('{{$bucket->id}}')"  class="btn btn-primary-btn" title="Copy Master Bucket"><i class="fa fa-copy"></i></a>--}}
                                     <a href="{{ url('/edit-master-bucket/'.$bucket->id) }}" title="edit" class="btn btn-primary-btn"><i class="fa fa-edit"></i></a>

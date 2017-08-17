@@ -36,7 +36,7 @@
                         <div class="r-icon-stats">
                             <i class="fa fa-bitbucket"></i>
                             <div class="bodystate">
-                                <h4>{{ count($contents['Buckets']) }}</h4>
+                                <h4>{{ $totalBucketCount }}</h4>
                             </div>
                         </div>
                     </div>
@@ -57,7 +57,8 @@
                 $bucketClass = ($bucketCounter>10) ? "bucket-icon bucket10" : "bucket-icon";
             ?>
                 <div class="col-lg-4 col-md-4 col-sm-4 col-xs-6">
-                    <a href="{{ url('/buckets?type=dashboard&x=').$dataName }}">
+                    <!--<a href="{{ url('/buckets?type=dashboard&x=').$dataName }}">-->
+					<a href="{{ url('/buckets?type=dashboard&x=').$dataName .('&bcnt=').$bucketCounter}}">
                         <div class="bucket_bg_value">
                             <span class="{{$counterClass}}">{{ $bucketCounter }}</span>
                             <div class="{{$bucketClass}}"><i class="fa fa-shopping-basket fa-2x"></i></div>

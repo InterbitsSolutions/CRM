@@ -3,6 +3,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\FraudIP;
 use App\Models\FraudParams;
+use App\Models\BucketLeadArea;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Input;
@@ -50,6 +51,81 @@ class FraudController extends Controller
 			}
 			return $res;
 		}
+		public function  user_ip()
+		{
+			$ipaddress = '';
+			if (isset($_SERVER['HTTP_CLIENT_IP']))
+			$ipaddress = $_SERVER['HTTP_CLIENT_IP'];
+			else if(isset($_SERVER['HTTP_X_FORWARDED_FOR']))
+			$ipaddress = $_SERVER['HTTP_X_FORWARDED_FOR'];
+			else if(isset($_SERVER['HTTP_X_FORWARDED']))
+			$ipaddress = $_SERVER['HTTP_X_FORWARDED'];
+			else if(isset($_SERVER['HTTP_FORWARDED_FOR']))
+			$ipaddress = $_SERVER['HTTP_FORWARDED_FOR'];
+			else if(isset($_SERVER['HTTP_FORWARDED']))
+			$ipaddress = $_SERVER['HTTP_FORWARDED'];
+			else if(isset($_SERVER['REMOTE_ADDR']))
+			$ipaddress = $_SERVER['REMOTE_ADDR'];
+			else
+			$ipaddress = 'UNKNOWN';
+			return $ipaddress;
+		}
+		 /*
+        * function to get user area
+        * created by NK
+        * created on 2 August
+		* @help URL : http://ourcodeworld.com/articles/read/51/how-to-detect-the-country-of-a-visitor-in-php-or-javascript-for-free-with-the-request-ip
+        */
+        public function capture_bucket_lead_info($bucketId,$bname)
+        {
+            $logDate                        = date('Y-m-d');
+			if($bname=="")
+			{
+				$bucketName                     = "";
+				$MasterBucketsCount             = MasterBuckets::where('bucket_pid',$bucketId)->select('bucket_name')->count();
+				if($MasterBucketsCount>0)
+				{
+					$MasterBucketsArr           = MasterBuckets::where('bucket_pid',$bucketId)->select('bucket_name')->first();
+					$bucketName                 = $MasterBucketsArr['bucket_name'];
+				}
+			}
+			else
+			{
+				$bucketName = $bname;
+			}
+            $customerIP                     = $this->user_ip();
+            $ipArray 			            = json_decode(file_get_contents('https://ipapi.co/'.$customerIP.'/json/'));
+            $latitude			            = $ipArray->latitude;
+            $longitude			            = $ipArray->longitude;
+            $city				            = $ipArray->city;
+			
+			/*$ipArray 						= json_decode(file_get_contents("http://www.geoplugin.net/json.gp?ip=".$customerIP));
+			$latitude			            = $ipArray->geoplugin_latitude;
+            $longitude			            = $ipArray->geoplugin_longitude;
+            $city				            = $ipArray->geoplugin_city;*/
+			
+            $bucketLeadArea                 = new BucketLeadArea;
+            $bucketLeadArea->bucket_name    = $bucketName;
+            $bucketLeadArea->bucket_pid     = $bucketId;
+            $bucketLeadArea->log_counter    = 1;
+            $bucketLeadArea->log_date       = $logDate;
+            $bucketLeadArea->customer_ip    = $customerIP;
+            $bucketLeadArea->latitude       = $latitude;
+            $bucketLeadArea->longitude      = $longitude;
+            $bucketLeadArea->city   	    = $city;
+            $bucketLeadArea->browser  	    = $this->browser_name();
+            $bucketLeadArea->save();
+            $message = "Information has been added successfully and redirect to BUCKET url.";
+            //return response
+            $return = array(
+                'value' => '1',
+                'type' => 'success',
+                'message' => $message,
+            );
+            return json_encode($return);
+        }
+		
+		
 		/*
 		 * function to get customer IP
 		 */
@@ -314,7 +390,10 @@ class FraudController extends Controller
    }
 	
 	
-	
+	public function webAnalytics()
+	{
+		return view('adminsOnly.webAnalytics.web-analytics');
+	}
 	
 	
 }

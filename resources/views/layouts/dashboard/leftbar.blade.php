@@ -3,14 +3,11 @@
         <div class="user-profile">
             <div class="dropdown user-pro-body">
                 <div><img src="{{ URL::asset('/') }}assests/plugins/images/users/admin.png" alt="user-img" class="img-circle"></div>
-                <a href="#" class="dropdown-toggle u-dropdown" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Crm Admin <span class="caret"></span></a>
+                <a href="#" class="dropdown-toggle u-dropdown" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"><?php echo ucwords($login_user_display_name)?> <span class="caret"></span></a>
                 <ul class="dropdown-menu animated flipInY">
-                    {{--<li><a href="#"><i class="ti-user"></i> My Profile</a></li>--}}
-                    <li><a href="{{ url('/update-password') }}"><i class="ti-settings"></i> Update Password</a></li>
-                    {{--<li><a href="#"><i class="ti-wallet"></i> My Balance</a></li>--}}
-                    {{--<li><a href="#"><i class="ti-email"></i> Inbox</a></li>--}}
-                    {{--<li role="separator" class="divider"></li>--}}
-                    {{--<li><a href="{{ url('/update-password') }}"><i class="ti-settings"></i> Account Setting</a></li>--}}
+                    <?php if(Auth::user()->role == 1) {?>
+                    <li><a href="{{ url('/update-password') }}"><i class="ti-settings"></i> Update Password</a></li> 
+                    <?php } ?> 
                     <li role="separator" class="divider"></li>
                     <li><a href="{{ url('/logout') }}" data-method="post" data-token="{{ csrf_token() }}"><i class="fa fa-power-off"></i> Logout</a></li>
                 </ul>
@@ -30,8 +27,10 @@
             </li>
             <li class="nav-small-cap m-t-10 margin-left-10">&nbsp;&nbsp;&nbsp;&nbsp;Main Menu</li>
             <li> <a href="{{ url('/') }}" class="waves-effect"><i class="linea-icon linea-basic fa-fw" data-icon="v"></i> <span class="hide-menu"> Dashboard </span></a></li>
-            {{--<li> <a href="{{ url('/admins') }}" class="waves-effect"><i class="linea-icon linea-basic fa-fw" data-icon="v"></i> <span class="hide-menu"> Admins </span></a></li>--}}
-            <!--bucket menu-->
+        <!--bucket menu-->
+
+        @foreach($assigned_modules as $modules)
+            @if($modules->module_name == 'Bucket')
             <li>
                 <a href="#" class="waves-effect">
                     <i class="icon-handbag fa-fw" data-icon="v"></i>
@@ -41,19 +40,29 @@
                 <ul class="nav nav-second-level">
                     <li> <a href="{{ url('/buckets') }}">Buckets</a> </li>
                     <li> <a href="#" data-toggle="modal" data-target="#master_bucket_dialog" target="_blank" onclick="$('#bucket_name').val('')">Add Bucket</a> </li>
-                    {{--<li> <a href="{{ url('/dummy-buckets') }}">Dummy Buckets</a> </li>--}}
+                    <li> <a href="{{ url('/multiple-buckets') }}">Multiple Buckets</a> </li>
                     <li> <a href="{{ url('/list-master-buckets') }}">Master Buckets</a> </li>
                     <li> <a href="{{ url('/manage-bucket-fields') }}">Manage Bucket Fields</a> </li>
-                    {{--<li> <a href="{{ url('/list-templates') }}">Templates</a> </li>--}}
-                    {{--<li> <a href="{{ url('/list-crm-templates') }}">Templates</a> </li>--}}
-                    {{--<li> <a href="{{ url('/add-template') }}">Add Template</a> </li>--}}
-                    {{--<li> <a href="{{ url('/add-master-bucket') }}" id="masterBucket">Add Master Bucket</a> </li>--}}
-                    {{--<li> <a href="{{ url('/list-child-buckets') }}">Child Buckets</a> </li>--}}
-                    {{--<li> <a href="{{ url('/list-buckets') }}" >View Buckets</a> </li>--}}
-                    {{--<li> <a href="{{ url('/duplicate-list-buckets') }}" >View Duplicate Buckets</a> </li>--}}
                 </ul>
             </li>
-            <!--configuration menu-->
+            @endif
+
+            @if($modules->module_name == 'Bucket Backup')
+            <li>
+                <a href="#" class="waves-effect">
+                    <i class="fa fa-retweet" data-icon="v"></i>
+                    <span class="hide-menu"> Bucket Backup </span>
+                    <span class="fa arrow"></span>
+                </a>
+                <ul class="nav nav-second-level">
+                    <li> <a href="{{ url('/export-buckets') }}">Export Backup</a> </li>
+                    <li> <a href="{{ url('/import-buckets') }}">Import Buckets</a> </li>
+                </ul>
+            </li>
+            @endif
+
+            
+            @if($modules->module_name == 'Configurations')
             <li>
                 <a href="#" class="waves-effect">
                     <i class="linea-icon linea-basic fa-fw" data-icon="v"></i>
@@ -65,7 +74,9 @@
                     <li> <a href="{{ url('/list-config') }}" >View Configurations</a> </li>
                 </ul>
             </li>
-            <!--template menu-->
+            @endif
+
+            @if($modules->module_name == 'Templates')
             <li>
                 <a href="#" class="waves-effect">
                     <i class="icon-docs fa-fw" data-icon="v"></i>
@@ -77,7 +88,9 @@
                     <li> <a href="{{ url('/list-crm-templates') }}" >View Templates</a> </li>
                 </ul>
             </li>
-            <!--parameter menu-->
+            @endif
+
+            @if($modules->module_name == 'Parameters')
             <li>
                 <a href="#" class="waves-effect">
                     <i class="linea-icon linea-software fa-fw" data-icon="v"></i>
@@ -89,21 +102,63 @@
                     <li> <a href="{{ url('/list-bucket-params') }}" >View Parameters</a> </li>
                 </ul>
             </li>
+            @endif
+
+            
+            @if($modules->module_name == 'Backup')
+            <li>
+                <a href="{{ url('/script-backup') }}" class="waves-effect">
+                    <i class="linea-icon linea-basic fa-fw" data-icon="v"></i>
+                    <span class="hide-menu"> Backup </span>
+                </a>
+            </li>
+            @endif
+
+            @if($modules->module_name == 'User')
+             <li>
+                <a href="#" class="waves-effect">
+                    <i class="icon-docs fa-fw" data-icon="v"></i>
+                    <span class="hide-menu"> User</span>
+                    <span class="fa arrow"></span>
+                </a>
+                <ul class="nav nav-second-level">
+                    <li> <a href="{{ url('/add-user') }}">Add User</a> </li>
+                     <li> <a href="{{ url('/list-user') }}">View User</a> </li>
+                    <li> <a href="{{ url('/add-user-role') }}">Add Role</a> </li>
+                    <li> <a href="{{ url('/list-user-roles') }}" >View Roles</a> </li>
+                </ul>
+            </li>
+            @endif
+        @endforeach
+            
+            <!--backup menu-->
+            
+            <!--configuration menu-->
+            
+            <!--template menu-->
+            
+            <!--parameter menu-->
+            
+            <!--Backup menu-->
+            
+            <!--User Roles menu-->
+           
+            
             <!--common menu-->
 
-<!--            {{--<li>--}}-->
-<!--                {{--<a href="javascript:void(0);" class="waves-effect"><i class="linea-icon linea-basic fa-fw text-danger" data-icon="7"></i>--}}-->
-<!--                    {{--<span class="hide-menu text-danger"> Multipurpose--}}-->
-<!--                        {{--<span class="fa arrow"></span>--}}-->
-<!--                    {{--</span>--}}-->
-<!--                {{--</a>--}}-->
-<!--                {{--<ul class="nav nav-second-level">--}}-->
-<!--                    {{--<li> <a href="{{ url('/admins') }}">Admins</a> </li>--}}-->
-<!--                    {{--<li> <a href="{{ url('/clients') }}">Clients</a> </li>--}}-->
-<!--                    {{--<li> <a href="{{ url('/invoices') }}">Invoices</a> </li>--}}-->
-<!--                    {{--<li> <a href="{{ url('/projects') }}">Projects</a> </li>--}}-->
-<!--                {{--</ul>--}}-->
-<!--            {{--</li>--}}-->
+        <!--            {{--<li>--}}-->
+        <!--                {{--<a href="javascript:void(0);" class="waves-effect"><i class="linea-icon linea-basic fa-fw text-danger" data-icon="7"></i>--}}-->
+        <!--                    {{--<span class="hide-menu text-danger"> Multipurpose--}}-->
+        <!--                        {{--<span class="fa arrow"></span>--}}-->
+        <!--                    {{--</span>--}}-->
+        <!--                {{--</a>--}}-->
+        <!--                {{--<ul class="nav nav-second-level">--}}-->
+        <!--                    {{--<li> <a href="{{ url('/admins') }}">Admins</a> </li>--}}-->
+        <!--                    {{--<li> <a href="{{ url('/clients') }}">Clients</a> </li>--}}-->
+        <!--                    {{--<li> <a href="{{ url('/invoices') }}">Invoices</a> </li>--}}-->
+        <!--                    {{--<li> <a href="{{ url('/projects') }}">Projects</a> </li>--}}-->
+        <!--                {{--</ul>--}}-->
+        <!--            {{--</li>--}}-->
             <li><a href="{{ url('/logout') }}" class="waves-effect"><i class="icon-logout fa-fw"></i> <span class="hide-menu">Log out</span></a></li>
         </ul>
     </div>
@@ -281,7 +336,7 @@
             var masterBucket = $('#master_child_bucket').val();
             var passToken = $('#pass_token').val();
             var url = '{{ url('/create-child-bucket') }}';
-            {{--var successRedirect = '{{ url('/list-child-buckets') }}';--}}
+                    {{--var successRedirect = '{{ url('/list-child-buckets') }}';--}}
             var successRedirect = '{{ url('/buckets') }}';
             customValid = true;
 
@@ -334,6 +389,12 @@
                 });
                 return false;
             }
+        });
+
+        //redirect to dashboard page on click from breadcrumbs
+        $('.breadcrumb li:first-child a').click(function(){
+            var dashboardRedirect = '{{ url('/') }}';
+            window.location.href = dashboardRedirect;
         });
     });
 </script>

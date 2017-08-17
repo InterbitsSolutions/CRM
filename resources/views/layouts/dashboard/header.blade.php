@@ -11,6 +11,7 @@
         <ul class="nav navbar-top-links navbar-right padding-10">
             <span style="color: rgb(255, 255, 255); margin-right: 7px;">AWS Server</span>
             <select style="margin: 8px 12px 0px 0px; width: auto;" name="aws_config" id="configAuth">
+                <option value="none">Please select server</option>
                 @foreach($configAuth as $config)
                     <?php $selected = ($config->status=='active') ? 'selected="selected"' : ''; ?>
                     <option value="{{ $config->id }}" <?php echo $selected ?>>{{ $config->aws_name }}</option>
@@ -28,6 +29,11 @@
             var currentActiveID = '{{$activeConfigId}}';
             var url = '{{ url('/activateConfig') }}';
             var successRedirect = '{{ url()->current() }}';
+            if(configAuthID=='none'){
+                alert("Please select server first!");
+                $('#configAuth').val(currentActiveID);
+                return false;
+            }
             if(confirm("Are you sure to switch the AWS server?")){
                 $('#overlay').show();
                 $.ajax({

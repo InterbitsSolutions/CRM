@@ -156,6 +156,7 @@ class MasterBucketsController extends Controller
                 $addBucket->bucket_pid  = $bucketPid;
                 $addBucket->bucket_template  = $bucketTemplate;
                 $addBucket->bucket_analytics_id  = $bucketAnalyticID;
+				 $addBucket->ringba_code  = $ringbaCode;
                 $addBucket->save();
                 $message = "'$bucketName' Bucket updated successfully!";
                 flash($message);

@@ -41,6 +41,7 @@ class BucketsController extends Controller
         $bucketAuthCredentials = $this->getAuthCredentials();
         $bucketKey = $bucketAuthCredentials['key'];
         $bucketSecret = $bucketAuthCredentials['secret'];
+        $awsName = $bucketAuthCredentials['aws_name'];
         $s3client = new S3Client([
             'version'     => 'latest',
             'region'      => 'eu-central-1',
@@ -54,38 +55,74 @@ class BucketsController extends Controller
             'Key'    => 'baz',
             'Body'   => 'bar'
         ];
-        // Using operation methods creates command implicitly.
-        $activeConfigId = $this->getActiveConfig();
-        $contents = $s3client->listBuckets();
-        foreach($contents['Buckets'] as $content){
-            if (preg_match('/www/',$content['Name'])){
-                //get bucket first string
-                $firstString = substr($content['Name'], 0, strcspn($content['Name'], '1234567890'));
-                $replaceCommonString = str_replace(array($firstString,'.com'), '' , $content['Name']);
+        //initialize counter
+        $totalCount = 0;
+        $bucketPidArr = array();
+        $bucketParamArr = array();
+        $contents = array();
+        $contents['Buckets'] = array();
+        try{
+            // Using operation methods creates command implicitly.
+            $activeConfigId = $this->getActiveConfig();
+            $contents = $s3client->listBuckets();
+            foreach($contents['Buckets'] as $content){
+                if (preg_match('/www/',$content['Name'])){
+                    //get bucket first string
+                    try {
+                        $location = $s3client->getBucketLocation(array('Bucket' => $content['Name']));
+                        $totalCount++;
+                        $firstString = substr($content['Name'], 0, strcspn($content['Name'], '1234567890'));
+                        $replaceCommonString = str_replace(array($firstString,'.com'), '' , $content['Name']);
 
-                //replace first find string from string
-                $getUniqueNumber = $this->getNumericVal($replaceCommonString);
-                if(!empty($getUniqueNumber)){
-                    $finalString =  preg_replace("/$getUniqueNumber/", '', $replaceCommonString, 1);
-                    //check if duplicate bucket record exist or not
-                    $checkBucketExist = DuplicateBuckets::where('bucket_code', "=", $finalString)->where('aws_server_id', "=", $activeConfigId)->first();
-                    if(empty($checkBucketExist)){
-                        //add entry in Duplicate bucket
-                        $addDuplicateBucket               = new DuplicateBuckets();
-                        $addDuplicateBucket->bucket_name  = $content['Name'];
-                        $addDuplicateBucket->bucket_code  = $finalString;
-                        $addDuplicateBucket->duplicate_bucket_counter  = $getUniqueNumber;
-                        $addDuplicateBucket->aws_server_id  = $activeConfigId;
-                        $addDuplicateBucket->save();
-                    }else{
-                        DuplicateBuckets::where('bucket_code', "=", $finalString)->where('aws_server_id', "=", $activeConfigId)->update(['duplicate_bucket_counter' => $getUniqueNumber]);
+                        //replace first find string from string
+                        $getUniqueNumber = $this->getNumericVal($replaceCommonString);
+                        if(!empty($getUniqueNumber)){
+                            $finalString =  preg_replace("/$getUniqueNumber/", '', $replaceCommonString, 1);
+                            //check if duplicate bucket record exist or not
+                            $checkBucketExist = DuplicateBuckets::where('bucket_code', "=", $finalString)->where('aws_server_id', "=", $activeConfigId)->first();
+                            if(empty($checkBucketExist)){
+                                //add entry in Duplicate bucket
+                                $addDuplicateBucket               = new DuplicateBuckets();
+                                $addDuplicateBucket->bucket_name  = $content['Name'];
+                                $addDuplicateBucket->bucket_code  = $finalString;
+                                $addDuplicateBucket->duplicate_bucket_counter  = $getUniqueNumber;
+                                $addDuplicateBucket->aws_server_id  = $activeConfigId;
+                                $addDuplicateBucket->save();
+                            }else{
+                                DuplicateBuckets::where('bucket_code', "=", $finalString)->where('aws_server_id', "=", $activeConfigId)->update(['duplicate_bucket_counter' => $getUniqueNumber]);
+                            }
+                        }
+                    }
+                    catch(\Exception $exception){
+
                     }
                 }
             }
+            // bucket PARAMS and create master bucket PID data
+            $getBucketParams = BucketParams::get();
+            foreach($getBucketParams  as $key => $paramData){
+                $key = $paramData['bucket_short_code'][0].$paramData['bucket_region'].$paramData['bucket_short_code'][1];
+                $bucketParamArr[$key]['bucket_region'] = $paramData['bucket_region'];
+                $bucketParamArr[$key]['bucket_short_code'] = $paramData['bucket_short_code'];
+                $bucketParamArr[$key]['startString'] = $paramData['bucket_short_code'][0].$paramData['bucket_region'];
+                $bucketParamArr[$key]['endString'] = $paramData['bucket_short_code'][1];
+                $bucketParamArr[$key]['bucket_parameters'] = $paramData['bucket_parameters'];
+            }
         }
+        catch(\Exception $exception){
+            $xmlResponse = $exception->getAwsErrorCode();
+            if($awsName=='default_credentials'){
+                flash('Please active Aws Configuration first to process further! ','danger');
+            }else{
+//                flash($xmlResponse,'danger');
+                flash('Please active a valid Aws Configuration to process further! ','danger');
+            }
+            $totalBucketCount = 0;
+//            flash($xmlResponse,'danger');
+        }
+
         //create master bucket PID data
         $masterBuckets = MasterBuckets::all();
-        $bucketPidArr = array();
         foreach($masterBuckets  as $key => $masterData){
             $bucketPidArr[$masterData['bucket_name']]['id'] = $masterData['id'];
             $bucketPidArr[$masterData['bucket_name']]['bucket_name'] = $masterData['bucket_name'];
@@ -99,17 +136,6 @@ class BucketsController extends Controller
             $bucketPidArr[$masterData['bucket_name']]['bucket_parameters'] = (!empty($getBucketParams)) ? $getBucketParams['bucket_parameters'] : '';
         }
 
-        // bucket PARAMS and create master bucket PID data
-        $getBucketParams = BucketParams::get();
-        $bucketParamArr = array();
-        foreach($getBucketParams  as $key => $paramData){
-            $key = $paramData['bucket_short_code'][0].$paramData['bucket_region'].$paramData['bucket_short_code'][1];
-            $bucketParamArr[$key]['bucket_region'] = $paramData['bucket_region'];
-            $bucketParamArr[$key]['bucket_short_code'] = $paramData['bucket_short_code'];
-            $bucketParamArr[$key]['startString'] = $paramData['bucket_short_code'][0].$paramData['bucket_region'];
-            $bucketParamArr[$key]['endString'] = $paramData['bucket_short_code'][1];
-            $bucketParamArr[$key]['bucket_parameters'] = $paramData['bucket_parameters'];
-         }
         //get templates from DB that not to be shown in Buckets
         $templates = DB::table('bucket_templates')->select( DB::raw('group_concat(aws_name) AS template_names'))->first();
         $templateArr = array_filter(explode(',',$templates->template_names));
@@ -117,7 +143,7 @@ class BucketsController extends Controller
         $status        =  "Inactive";
         $allAwsServer  =  ConfigAuth::where('status', "=", $status)->get();
 		
-        return view('adminsOnly.buckets.index', compact('contents', 's3client', 'masterBuckets', 'bucketPidArr', 'templateArr', 'bucketParamArr','allAwsServer'));
+        return view('adminsOnly.buckets.index', compact('contents', 's3client', 'masterBuckets', 'bucketPidArr', 'templateArr', 'bucketParamArr','allAwsServer','totalCount'));
     }
 
     /*
@@ -622,10 +648,12 @@ class BucketsController extends Controller
             //master bucket var
             $masterBucketName = $masterBucketDetails['bucket_name'];
             $bucketRegion = $masterBucketDetails['bucket_region'];
+		
             $bucketShortCode = $masterBucketDetails['bucket_short_code'];
             $bucketBrowser = $masterBucketDetails['bucket_browser'];
             $bucketPhoneNumber = $masterBucketDetails['bucket_phone_number'];
             $bucketPID = $masterBucketDetails['bucket_pid'];
+			$bucketAnalyticsId = $masterBucketDetails['bucket_analytics_id'];
 
             //get region code from - required
             $regionCode = BucketRegions::where('region_value', "=", $bucketRegion)->first();
@@ -661,6 +689,7 @@ class BucketsController extends Controller
             $bucketParams['bucket_counter'] = $newCounter;
             $bucketParams['bucket_basic_name'] = $masterBucketName;
 			$bucketParams['bucket_phone_number'] = $bucketPhoneNumber;
+			$bucketParams['bucket_analytics_id'] = $bucketAnalyticsId;
 
            // $createBucketResponse = json_decode($this->duplicatorMaster($bucketParams));
              $createBucketResponse = json_decode($this->duplicateUsingMasterTemplate($bucketParams));
@@ -1258,6 +1287,7 @@ class BucketsController extends Controller
         $bucket_counter         = $bucketParams['bucket_counter'];
         $bucketBasicName        = $bucketParams['bucket_basic_name'];
 		$bucketPhoneNumber      = $bucketParams['bucket_phone_number'];
+		$analyticsId            = $bucketParams['bucket_analytics_id'];
         $primary                = "yes";
         $status                 = "active";
         //$awsServerActive       = ConfigAuth::where('status', "=", $status)->first();
@@ -1409,7 +1439,21 @@ class BucketsController extends Controller
 					'SourceFile'   => $tmp_name,
 					'ContentType'  => 'application/xml',
 					'ACL'          => 'public-read',
-					'StorageClass' => 'REDUCED_REDUNDANCY',	));		
+					'StorageClass' => 'REDUCED_REDUNDANCY',	));	
+					
+					$this->create_analytics_fie($analyticsId);
+                    $awsFolderPath = "assests/analytics.js";
+                    $tmp_name      =  public_path('template_data').DIRECTORY_SEPARATOR."analytics.js";
+                    $result 	   = $s3clientToMove->putObject(array(
+                        'Bucket'       => $newBucketName,
+                        'Key'          => $awsFolderPath,
+                        'SourceFile'   => $tmp_name,
+                        'ContentType'  => 'application/javascript',
+                        'ACL'          => 'public-read',
+                        'StorageClass' => 'REDUCED_REDUNDANCY',	));
+					
+					
+					
 
                     //return response
                     $return = array(
@@ -1514,6 +1558,26 @@ class BucketsController extends Controller
         );
         return json_encode($return);
        }
+    }
+	 /*
+   * function to create analytics file
+   * created by NK
+   * created on 10 aug'17
+   * $phoneNumber : From the master bucket table
+   */
+    public function create_analytics_fie($analyticsId='9780058718')
+    {
+        $script ="";
+        $script.="(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');";
+        $script.="ga('create', '$analyticsId', 'auto');";
+        $script.="ga('send', 'pageview');";
+        $jsFilePath    = public_path('template_data').DIRECTORY_SEPARATOR;
+        $file           = fopen($jsFilePath."analytics.js","w");
+        fwrite($file,$script);
+        fclose($file);
     }
 	
 	

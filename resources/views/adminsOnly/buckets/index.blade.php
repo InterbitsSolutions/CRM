@@ -7,7 +7,7 @@
     <div class="container-fluid">
         <div class="row bg-title">
             <div class="col-lg-3 col-md-4 col-sm-4 col-xs-12">
-                <h4 class="page-title">Manage Buckets <?php if(!empty(Input::get('type')) && !empty(Input::get('x'))){ echo 'for '.strtoupper(Input::get('x')); }; ?></h4>
+                <h4 class="page-title">Manage Buckets <?php if(!empty(Input::get('type')) && !empty(Input::get('x'))){ echo 'for '.strtoupper(Input::get('x'))."<br/> (".Input::get('bcnt')." Buckets)"; }; ?></h4>
             </div>
             <div class="col-lg-9 col-sm-8 col-md-8 col-xs-12">
                 <ol class="breadcrumb">
@@ -16,7 +16,7 @@
                 </ol>
             </div>
             <div class="col-lg-12 col-sm-12 col-md-12 col-xs-12">
-                <div class="pull-right"><h2 class="bucket-total">{{ count($contents['Buckets']) }}<p> Buckets</p></h2></div>
+                <div class="pull-right"><h2 class="bucket-total">{{ $totalCount }}<p> Buckets</p></h2></div>
             </div>
         </div>
         <!-- /row -->
@@ -32,7 +32,7 @@
                                 <input type="radio" name="showLink" id="withoutParams"> Without Params
                     </div>
                     <div class="table-responsive col-sm-12">
-                        <table id="example23" class="table table-striped table_grid">
+                        <table id="bucketTable" class="table table-striped table_grid">
                             <thead>
                             <tr>
                                 <th><input type="checkbox" class="bulkCheckbox"></th>
@@ -160,7 +160,7 @@
     <!-- /.container-fluid -->
     </div>
     <!--SHOW DIALOG BOX on the basis of total buckets-->
-    <?php if(count($contents['Buckets'])>=100){ ?>
+    <?php if(count($totalCount)>=100){ ?>
     <div id="duplicate_bucket_dialog" class="modal fade form-group" role="dialog">
         <input type="hidden" id="dpass_token" name="_token" value="{{ csrf_token() }}">
         <div class="modal-dialog">

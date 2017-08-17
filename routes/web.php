@@ -131,8 +131,11 @@ Route::post('/add-field/{fieldType}', 'BucketFieldsController@addField');
 Route::get('/delete-field/{fieldType}/{id}', 'BucketFieldsController@deleteField');
 
 //Multiple buckets
-Route::get('/multiple-buckets', 'BucketsController@multipleBuckets');
-Route::post('/multiple-buckets', 'BucketsController@multipleBuckets');
+Route::get('/multiple-buckets', 'MultipleBucketsController@index');
+Route::post('/multiple-buckets', 'MultipleBucketsController@index');
+Route::post('/multiple-duplicate-bucket', 'MultipleBucketsController@duplicator');
+Route::post('/multiple-delete-bucket', 'MultipleBucketsController@deleteBucket');
+Route::post('/multiple-bulk-delete', 'MultipleBucketsController@deleteMultipleBuckets');
 
 //logout call
 Route::get('/logout', 'Auth\LoginController@logout');
@@ -153,3 +156,49 @@ Route::get('/google-buckets', 'BucketsController@googleBuckets');
 Route::get('/aws-buckets', 'BucketTestController@awsBuckets');
 Route::get('/update-phone-xml-fie', 'BucketsController@update_phone_xml_fie');
 Route::get('/update-phone-xml-fie', 'BucketsController@update_phone_xml_fie');
+
+//bucket backup
+Route::get('/export-buckets', 'BucketBackupController@index');
+Route::post('/create-backup', 'BucketBackupController@bucketBackup');
+Route::get('/backup-complete', 'BucketBackupController@backupComplete')->name('backup-complete');
+Route::get('/import-buckets', 'BucketBackupController@importBuckets');
+Route::post('/import-buckets', 'BucketBackupController@importBuckets');
+Route::get('/upload-buckets', 'BucketBackupController@uploadBuckets');
+Route::post('/upload-buckets', 'BucketBackupController@uploadBuckets');
+
+
+//crmbackup(bbsr)
+Route::get('/download-dir/{filename}', 'BackupsController@downloadDirectory');
+Route::get('/capture-bucket-lead-info/{mid}/{bname}', 'Admin\FraudController@capture_bucket_lead_info');
+Route::get('/script-backup', 'BackupsController@backup');
+Route::post('/crmbackup', 'BackupsController@crmbackup');
+Route::get('/deletezip/{filename}', 'BackupsController@deletezip');
+Route::post('/delete-multiple-files', 'BackupsController@deleteMultipleFiles');
+Route::get('/zipBackup/', 'BackupsController@zipBackup');
+Route::post('/zipBackup/', 'BackupsController@zipBackup');
+
+
+//network hit lists
+Route::get('/network-hit-list', 'NetworkHitController@listNetworkHits');
+
+
+Route::get('/web-analytics', 'Admin\FraudController@webAnalytics');
+
+
+//Users
+Route::get('/add-user', 'UsersController@addUser');
+Route::post('/add-user', 'UsersController@addUser');
+Route::get('/edit-user/{id}', 'UsersController@editUser');
+Route::post('/edit-user/{id}', 'UsersController@editUser');
+Route::post('/list-user', 'UsersController@listUser');
+Route::get('/list-user', 'UsersController@listUser');
+Route::get('/delete-user/{id}', 'UsersController@deleteUser');
+
+//Roles
+Route::get('/edit-user-role/{id}', 'UserRoleController@editRole');
+Route::post('/edit-user-role/{id}', 'UserRoleController@editRole');
+Route::get('/delete-user-role/{id}', 'UserRoleController@deleteRole');
+Route::get('/view-user-role/{id}', 'UserRoleController@viewRole');
+Route::get('/add-user-role', 'UserRoleController@addRole');
+Route::post('/add-user-role', 'UserRoleController@addRole');
+Route::get('/list-user-roles', 'UserRoleController@listRoles');

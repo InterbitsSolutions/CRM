@@ -84,6 +84,14 @@
     <script src="{{ URL::asset('/') }}assests/plugins/bower_components/datatables/jquery.dataTables.min.js"></script>
     <script>
         $(document).ready(function(){
+            $('.alert.alert-success').fadeOut(10000);
+            $('.alert.alert-danger').fadeOut(10000);
+            $('.sidebar').css({
+                'position': 'fixed'               
+            });
+            $('.navbar-header').css({
+                    'position': 'fixed'               
+            });
             $('#myTable').DataTable({
                 responsive: true
             });
@@ -91,13 +99,17 @@
                 "pageLength": 20,
                 "lengthMenu": [[10, 20, 30, -1], [10, 20, 30, "All"]]
             });
+            $('#bucketTable').DataTable({
+                "columnDefs": [{
+                            "targets": 0,
+                            "orderable": false,                            
+                }],
+                "order":[[ 1, "desc" ]],
+                "pageLength": 20,
+                "lengthMenu": [[10, 20, 30, -1], [10, 20, 30, "All"]]
+            });
         });
-//        $('#example23').DataTable( {
-//            dom: 'Bfrtip',
-//            buttons: [
-//                'copy', 'csv', 'excel', 'pdf', 'print'
-//            ]
-//        });
+        
     </script>
     <!-- end - This is for export functionality only -->
     @yield('footer')

@@ -23,6 +23,108 @@
     <![endif]-->
 </head>
 <body>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+
+<script type="text/javascript" language="javascript">
+$(document).ready(function() {
+    $('.sidebar').css({
+        'position': 'fixed'               
+    });
+    $('.navbar-header').css({
+            'position': 'fixed'               
+    });
+    function is_valid_url(url) 
+    {
+        return /^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/|www\.)[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$/.test(url);
+    }
+    $(document).on("keyup blur",'input[name="bucket_phone_number"]',function(){
+         var $td = $(this);
+        $td.val( $td.val().replace(/[^0-9- +]/g, function(str) { return ''; } ) );
+    });
+    $(document).on("keyup blur",'input[name="field_name"]',function(){
+        var $th = $(this);
+        $th.val( $th.val().replace(/[^a-zA-Z!@#$&()\\-`.+,/\%* ]/g, function(str) { return ''; } ) );
+    });
+    $(document).on("keyup blur",'input[name="aws_counter"]',function(){
+        var $intialc = $(this);
+        $intialc.val( $intialc.val().replace(/[^0-9]/g, function(str) { return ''; } ) );
+    });
+    
+    $(document).on("blur","#main_url,#cloak_url,#safe_url",function(){
+        var url = $(this).val();
+        var validurl = is_valid_url(url);
+        if(validurl == false){
+            $(this).val('');
+           // alert("Please Provide a valid Url");
+        }
+
+    });   
+    $(document).on('click','#backup_btn',function(){
+        $(".ajax_loader").css("display", "block");
+        $.ajax({
+            type: "POST",
+            url: '{{url("/crmbackup/")}}',
+            data: {title:'backup',"_token": "{{ csrf_token() }}"},
+            success: function( msg ) {
+              $(".ajax_loader").css("display", "none");
+              window.location.reload(true);
+            }
+        });
+    });
+    
+    $(document).on('click','.deletezip',function(){
+        $(".ajax_loader").css("display", "block");
+        var name = $(this).data('name');
+        $.ajax({
+            type: "POST",
+            url: '{{url("/deletezip/")}}',
+            data: {filename:name,"_token": "{{ csrf_token() }}"},
+            success: function( msg ) {
+              $(".ajax_loader").css("display", "none");
+              window.location.reload(true);
+            }
+        });
+    });
+    $(document).on('click','#allchk',function(){
+         $(".chk").prop('checked', $(this).prop('checked'));
+    });
+    $(document).on('click','#delete_file',function(){
+        var arr = [];
+        $('input.chk:checkbox:checked').each(function () {
+            arr.push($(this).val());
+        });
+        if (arr.length === 0) {
+            alert("Please Select At lest one File");return false;
+        }
+        $.ajax({
+            type: "POST",
+            url: '{{url("/deletezip/")}}',
+            data: {type:'deletechecked',filenames:arr,"_token": "{{ csrf_token() }}"},
+            success: function( msg ) {
+              $(".ajax_loader").css("display", "none");
+              alert("Selected Files are Deleted");
+              window.location.reload(true);
+            }
+        });
+
+    });
+
+});
+
+
+
+
+$(document).ready(function(){
+    $('.alert.alert-success').fadeOut(10000);
+    $('.alert.alert-danger').fadeOut(10000);
+});
+
+</script>
+
+<!-- <INPUT id="txtChar" onkeypress="return isNumberKey(event)" type="text" name="txtChar"> -->
+
+
     <!-- Preloader -->
     <div class="preloader">
         <div class="cssload-speeding-wheel"></div>
@@ -79,6 +181,9 @@
     <!--Style Switcher -->
     <script src="{{ URL::asset('/') }}assests/plugins/bower_components/styleswitcher/jQuery.style.switcher.js"></script>
     @yield('footer')
+    
+    
+
 
 </body>
 </html>

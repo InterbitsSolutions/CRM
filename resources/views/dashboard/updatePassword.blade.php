@@ -36,6 +36,8 @@
                             </div>
                             <button type="submit" class="btn btn-info waves-effect waves-light m-r-10">Submit</button>
                             <button type="button" onclick="javascript:history.go(-1)" class="btn btn-inverse waves-effect waves-light">Cancel</button>
+							{{ method_field('PUT') }}
+                            {{ csrf_field() }}
                         </form>
                     </div>
                 </div>
