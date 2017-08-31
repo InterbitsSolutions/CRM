@@ -8,6 +8,7 @@ use App\Models\BucketTemplates;
 use App\Models\MasterBucketsCounter;
 use App\Models\TemplateFiles;
 use App\Models\TemplateFolders;
+use Illuminate\Support\Facades\Input;
 use Illuminate\Support\Facades\Redirect;
 use Aws\S3\S3Client;
 use Storage;
@@ -90,8 +91,7 @@ class TemplatesController extends Controller
                 ]);
 
                 //get list of all buckets and check if bucket name already exist
-                
-				try 
+				try
 				{	
 				$existName = false;
                 $contents = $s3client->listBuckets();
@@ -151,7 +151,6 @@ class TemplatesController extends Controller
 					return Redirect::to("upload-template-files/$insertedId");
 					}                 
                 }
-				
 			  }// try block end
 			  catch (\Aws\S3\Exception\S3Exception $e)  {
 				$message = $e->getMessage();
@@ -291,12 +290,41 @@ class TemplatesController extends Controller
      */
     public function listCrmTemplates()
     {
-        $primary                = "yes";
-        $bucketAuthCredentials  = ConfigAuth::where('primary_network', "=", $primary)->first();
-        $activeConfigId 		=  $bucketAuthCredentials['id'];
-        $templates 				= BucketTemplates::where('aws_server_id', "=", $activeConfigId)->get();
-        $status        		=  "Inactive";
-        $allAwsServer   		=  ConfigAuth::where('status', "=", $status)->orderBy('id','desc')->get();
+        $primary                =   "yes";
+        $bucketAuthCredentials  =   ConfigAuth::where('primary_network', "=", $primary)->first();
+        $activeConfigId 		=   $bucketAuthCredentials['id'];
+        $bucketKey              =   $bucketAuthCredentials['key'];
+        $bucketSecret           =   $bucketAuthCredentials['secret'];
+        $templatesArr  			=   BucketTemplates::where('aws_server_id', "=", $activeConfigId)->get();
+        foreach($templatesArr as $templateVal)
+        {
+            $templateId     =  $templateVal['id'];
+            $BucketName     =  $templateVal['aws_name'];
+            $regionCode     =  $templateVal['template_region'];
+            $s3client = new S3Client([
+                'version'     => 'latest',
+                'region'      => $regionCode,
+                'credentials' => [
+                    'key'    => $bucketKey,
+                    'secret' => $bucketSecret
+                ]
+            ]);
+            //$BucketName = 'www.support.microsoft9002yfrmsrbchs9696.com';
+            $result = json_encode($s3client->doesBucketExist($BucketName));
+            if($result==='false')
+            {
+                $whereArray = array('template_id'=>$templateId);
+                //delete template from DB
+                BucketTemplates::where('id',$templateId)->delete();
+                //delete files from DB
+                TemplateFiles::where($whereArray)->delete();
+                //delete folder entries from from DB
+                TemplateFolders::where($whereArray)->delete();
+            }
+        }
+        $templates  			=   BucketTemplates::where('aws_server_id', "=", $activeConfigId)->get();
+        $status        		    =   "Inactive";
+        $allAwsServer   		=   ConfigAuth::where('status', "=", $status)->orderBy('id','desc')->get();
         return view('adminsOnly.templates.viewCrmTemplates', compact('templates','allAwsServer'));
     }
 
@@ -320,14 +348,12 @@ class TemplatesController extends Controller
             $templateFiles = TemplateFiles::where('template_id', "=", $templateId)->where('folder_id', '=', $folderID)->get();
             $templateFolders = TemplateFolders::where('template_id', "=", $templateId)->where('parent_folder', '!=', 0)->where('parent_folder', '=', $folderID)->where('folder_name', '!=', $folderName)->get();
             }
-			
 			catch (\Aws\S3\Exception\S3Exception $e)  {
 				$message = $e->getMessage();
 				$errorMessage = 'There is some error while updating bucket field. Please try again later!';
 				flash($errorMessage, "danger");
 				return redirect('/list-crm-templates');
 			}
-
 		}else{
             $folderID = '';
             $folderName = '';
@@ -464,7 +490,6 @@ class TemplatesController extends Controller
             $templateName = $templateData->aws_name;
             $templateRegion = $templateData->template_region;
 			
-
             //get region code from - required
            // $regionCode = BucketRegions::where('region_value', "=", $templateRegion)->first();
            // $templateRegion = (!empty($regionCode['region_code'])) ? $regionCode['region_code'] : "eu-central-1";
@@ -521,7 +546,6 @@ class TemplatesController extends Controller
                                     flash('Files uploaded successfully!');
                                 }
                             }
-
                         }else{
                             flash('There is some error while uploading, please try again later!', 'danger');
                         }
@@ -639,7 +663,6 @@ class TemplatesController extends Controller
                     ]);
                     //list the current bucket from active AWS server, from where we have to move/copy
                     $stp = $s3clientActive->listObjects(array('Bucket' => $bucket)); // to
-
                     foreach ($stp['Contents'] as $object) {
                         //create instance of NEW server, where we have to move/copy
                         $s3clientToMove->copyObject(array(
@@ -655,7 +678,6 @@ class TemplatesController extends Controller
                             'IndexDocument' => array('Suffix' => 'index.html',),
                         ),
                     );
-
                     //create instance of NEW server, where we have to move/copy
                     $result2 = $s3clientToMove->putBucketWebsite($arg);
                     $result3 = $s3clientToMove->putBucketPolicy([
@@ -706,9 +728,7 @@ class TemplatesController extends Controller
                                 $addFiles->save();
                             }
                         }
-
                     }
-
                     $templateFilesDataCount    = TemplateFiles::where('id',$template_id)->where('folder_id',0)->count();
                     if($templateFilesDataCount>0)
                     {
@@ -723,15 +743,10 @@ class TemplatesController extends Controller
                             $addFiles->save();
                         }
                     }
-
                     $srcPath = public_path('template_data').DIRECTORY_SEPARATOR.$template_id;
                     $destPath = public_path('template_data').DIRECTORY_SEPARATOR.$insertedTemplateId;
                     $this->recurse_copy($srcPath,$destPath);
                     /* new */
-
-
-
-
                     flash($finalMessage);
                     //return response
                     $return = array(
@@ -744,7 +759,6 @@ class TemplatesController extends Controller
                     return json_encode($return);
                 }
                 catch(\Exception $exception){
-
                     $xmlResposne = $exception->getAwsErrorCode();
                     if($xmlResposne=="BucketAlreadyExists")
                     {
@@ -760,9 +774,7 @@ class TemplatesController extends Controller
                         'message' => $message,
                     );
                     return json_encode($return);
-
                 }
-
             }
         }
     }

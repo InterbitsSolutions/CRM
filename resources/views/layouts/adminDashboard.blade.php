@@ -109,6 +109,49 @@ $(document).ready(function() {
         });
 
     });
+    $(document).on('keyup','#user_role_name',function(){
+        var hidden_role_name = $('#hidden_role_name').val();
+        var role_name = $(this).val();
+        if(role_name != hidden_role_name){
+            
+        $.ajax({
+            type: "POST",
+            url: '{{url("/check-duplicate-role/")}}',
+            data: {role_name:role_name,"_token": "{{ csrf_token() }}"},
+            success: function(result) {
+              if(result > 0){
+                alert("Role already Exist. Please create a different Role");
+                $('#user_role_name').val('');
+                return false;
+              }
+            }
+        });
+    }
+    if(hidden_role_name == ""){
+        
+        $.ajax({
+            type: "POST",
+            url: '{{url("/check-duplicate-role/")}}',
+            data: {role_name:role_name,"_token": "{{ csrf_token() }}"},
+            success: function(result) {
+              if(result > 0){
+                alert("Role already Exist. Please create a different Role");
+                $('#user_role_name').val('');
+                return false;
+              }
+            }
+        });
+    }
+    });
+    $(document).on('click','.role_save,.role_update',function(){
+        var num_checked = $("input[name='modules[]']:checked").length;
+        if(num_checked < 1){
+            alert("Please Select at least one Module");
+            return false;
+        }else{
+            return true;
+        }
+    });
 
 });
 

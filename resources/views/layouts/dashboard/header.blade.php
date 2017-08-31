@@ -10,11 +10,18 @@
         </ul>
         <ul class="nav navbar-top-links navbar-right padding-10">
             <span style="color: rgb(255, 255, 255); margin-right: 7px;">AWS Server</span>
+			
             <select style="margin: 8px 12px 0px 0px; width: auto;" name="aws_config" id="configAuth">
                 <option value="none">Please select server</option>
                 @foreach($configAuth as $config)
+                    <?php if(!empty($awsId)){
+					 $selected123 = ($awsId == $config->id) ? 'selected="selected"' : '';  ?>
+					 
+					 <option value="{{$config->id}}" <?php echo $selected123 ?>>{{ $config->aws_name }}</option>
+				   <?php }else{?>
                     <?php $selected = ($config->status=='active') ? 'selected="selected"' : ''; ?>
                     <option value="{{ $config->id }}" <?php echo $selected ?>>{{ $config->aws_name }}</option>
+				   <?php } ?>
                 @endforeach
             </select>
         </ul>
@@ -26,7 +33,10 @@
     $(document).ready(function($){
         $(document).on('change','#configAuth',function(){
             var configAuthID = $(this).val();
-            var currentActiveID = '{{$activeConfigId}}';
+			//alert(configAuthID);
+            //var currentActiveID = '{{$activeConfigId}}';
+            var currentActiveID = '{{$awsId}}';
+			//alert(currentActiveID);
             var url = '{{ url('/activateConfig') }}';
             var successRedirect = '{{ url()->current() }}';
             if(configAuthID=='none'){

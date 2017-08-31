@@ -22,7 +22,7 @@ use App\Classes\S3;
 use Mockery\CountValidator\Exception;
 use Storage;
 use Google\Cloud\Storage\StorageClient;
-
+use Illuminate\Support\Facades\Session;
 
 class MultipleBucketsController extends Controller
 {
@@ -40,10 +40,27 @@ class MultipleBucketsController extends Controller
     {
         ini_set('max_execution_time', 3000);
         ini_set('memory_limit','1024M');
-        $activeConfigId = $this->getActiveConfig();
+		
+		
+					//added for session
+		if (session::has('awsId'))
+        {
+             $activeConfigId                  = session()->get('awsId');
+			 $bucketAuthCredentials  = $this->getCredentials($activeConfigId);
+        }
+        else
+        {
+            $bucketAuthCredentials = $this->getAuthCredentials();
+			$activeConfigId                 = $bucketAuthCredentials['aws_id'];
+			
+		}
+		
+		//echo $activeConfigId;exit;
+        //$activeConfigId = $this->getActiveConfig();
         if(!empty($_POST['aws_networks'])){
             $bucketArray = array();
             $selectedNetworks = $_POST['aws_networks'];
+			//print_r($_POST['aws_networks']);exit;
             foreach($_POST['aws_networks'] as $key => $recordID){
                 //get aws server Details
                 $bucketAuthCredentials = $this->getCredentials($recordID);
@@ -63,7 +80,10 @@ class MultipleBucketsController extends Controller
                 //catch exception if found..
                 try{
                     $contents = $s3client->listBuckets();
+					//echo count($contents);exit;
                     $totalBuckets = count($contents['Buckets']);
+					//echo $totalBuckets;exit;
+					//echo $activeConfigId;exit;
                     //add auth id and network in buckets array
                     foreach ($contents['Buckets'] as $key => $bucketDetails){
                         if(!empty($bucketDetails['Name'])){
@@ -189,7 +209,8 @@ class MultipleBucketsController extends Controller
         //list of all aws server
         $status        =  "Inactive";
         $allAwsServer  =  ConfigAuth::where('status', "=", $status)->get();
-        return view('adminsOnly.multipleBuckets.index', compact('contents', 's3client', 'masterBuckets', 'bucketPidArr', 'templateArr', 'bucketParamArr','allAwsServer', 'selectedNetworks'));
+		
+        return view('adminsOnly.multipleBuckets.index', compact('contents', 's3client', 'masterBuckets', 'bucketPidArr', 'templateArr', 'bucketParamArr','allAwsServer', 'selectedNetworks','awsId'));
     }
 
     /*
@@ -532,26 +553,18 @@ class MultipleBucketsController extends Controller
             //get buckets
             $buckets = $_POST['bucket_name'];
             if(!empty($buckets)){
-                foreach($buckets as $key => $bucketDetails){
-                    //get Auth ID and Bucket name
-                    $explodeDetails =  explode('_',$bucketDetails);
-                    $bucketName = $explodeDetails[0];
-                    $bucketAuth = $explodeDetails[1];
-
-                    $firstString = substr($bucketName, 0, strcspn($bucketName, '1234567890'));
-                    //replace string, get unique number and get final string of the BUCKET
-                    $replaceCommonString = str_replace(array($firstString,'.com'), '' , $bucketName);
-
-                    //get bucket Regions
-                    $regionArr = $this->getRegions();
-                    $bucketRegion = 'fr';
-                    foreach ($regionArr as $regionKey => $regionCodeVal) {
-                        if (stristr($replaceCommonString, $regionKey) !== FALSE) {
-                            $bucketRegion = $regionKey;
-                        }
+                foreach($buckets as $key => $bucketName){
+                    $bucketRegion = '';
+                    if(strpos($bucketName, '_') !== false) {
+                        //get Auth ID and Bucket name
+                        $explodeDetails =  explode('_',$bucketName);
+                        $bucketName = $explodeDetails[0];
+                        $bucketAuth = $explodeDetails[1];
+                        $bucketRegion = $explodeDetails[2];
                     }
+
                     //get region code
-                    $regionCode = (!empty($bucketRegion)) ? $regionArr[$bucketRegion] : "eu-central-1";
+                    $regionCode = (!empty($bucketRegion)) ? $bucketRegion : "eu-central-1";
                     if(empty($regionCode)){
                         //return response
                         $return = array(
@@ -560,7 +573,6 @@ class MultipleBucketsController extends Controller
                         );
                         return json_encode($return);
                     }
-
 
                     //create object for "S3Client"
 //                    $bucketAuthCredentials = $this->getAuthCredentials();

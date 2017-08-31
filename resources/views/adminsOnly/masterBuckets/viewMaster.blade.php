@@ -55,7 +55,8 @@
                             @foreach($buckets as $bucket)
                                 <tr>
                                 <td>{{ $counter }}</td>
-                                <td>{{ strtoupper($bucket->bucket_name) . '('.$bucket->template_name.')' }}</td>
+                                 <?php $templateName = (!empty($bucket->template_name))?$bucket->template_name:"Please assign template";  ?>
+                                <td>{{ strtoupper($bucket->bucket_name) . '('.$templateName.')' }}</td>
                                 <td>{{ (!empty($bucket->bucket_region)) ? $bucket->bucket_region : "-" }}</td>
                                 <td>{{ (!empty($bucket->bucket_short_code)) ? $bucket->bucket_short_code : "-"  }}</td>
                                 <td>{{ (!empty($bucket->bucket_pid)) ? $bucket->bucket_pid : "-"  }}</td>

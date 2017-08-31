@@ -186,13 +186,14 @@ Route::get('/web-analytics', 'Admin\FraudController@webAnalytics');
 
 
 //Users
-Route::get('/add-user', 'UsersController@addUser');
-Route::post('/add-user', 'UsersController@addUser');
+Route::get('/add-users', 'UsersController@addUser');
+Route::post('/add-users', 'UsersController@addUser');
 Route::get('/edit-user/{id}', 'UsersController@editUser');
 Route::post('/edit-user/{id}', 'UsersController@editUser');
-Route::post('/list-user', 'UsersController@listUser');
-Route::get('/list-user', 'UsersController@listUser');
+Route::post('/list-users', 'UsersController@listUser');
+Route::get('/list-users', 'UsersController@listUser');
 Route::get('/delete-user/{id}', 'UsersController@deleteUser');
+Route::post('/change-password', 'UsersController@changePassword');
 
 //Roles
 Route::get('/edit-user-role/{id}', 'UserRoleController@editRole');
@@ -202,3 +203,18 @@ Route::get('/view-user-role/{id}', 'UserRoleController@viewRole');
 Route::get('/add-user-role', 'UserRoleController@addRole');
 Route::post('/add-user-role', 'UserRoleController@addRole');
 Route::get('/list-user-roles', 'UserRoleController@listRoles');
+Route::post('/check-duplicate-role', 'UserRoleController@checkDuplicateRole');
+// template Backup
+Route::get('/export-template', 'TemplatesBackupController@exportTemplate');
+// template Backup
+Route::get('/export-template', 'TemplatesBackupController@viewExportTemplate');
+Route::post('/export-template', 'TemplatesBackupController@exportTemplate');
+Route::get('/export-template-complete', 'TemplatesBackupController@exportTemplateComplete')->name('export-template-complete');
+Route::post('/duplicate-bucket-with-custom-counter', 'BucketsController@duplicate_with_custom_counter');
+Route::get('/user-log', 'UsersController@userLog');
+Route::post('/user-log', 'UsersController@userLog');
+Route::get('/deletelog/{id}', 'UsersController@deletelog');
+Route::post('/delete-multiple-log', 'UsersController@deleteMultipleLog');
+
+//Dashboard Data
+Route::post('/get-dashboard-content', 'PagesController@getDashboardContent');

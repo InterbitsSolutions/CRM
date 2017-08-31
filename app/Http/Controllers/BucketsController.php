@@ -10,6 +10,7 @@ use App\Models\BucketRegions;
 use App\Models\BucketTemplates;
 use App\Models\MasterBuckets;
 use App\Models\MasterBucketsCounter;
+use App\Models\UserActionlog;
 use Aws\DirectoryService\DirectoryServiceClient;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ use App\Classes\S3;
 use Mockery\CountValidator\Exception;
 use Storage;
 use Google\Cloud\Storage\StorageClient;
-
+use Illuminate\Support\Facades\Session;
 
 class BucketsController extends Controller
 {
@@ -38,23 +39,9 @@ class BucketsController extends Controller
      */
     public function index()
     {
-        $bucketAuthCredentials = $this->getAuthCredentials();
-        $bucketKey = $bucketAuthCredentials['key'];
-        $bucketSecret = $bucketAuthCredentials['secret'];
-        $awsName = $bucketAuthCredentials['aws_name'];
-        $s3client = new S3Client([
-            'version'     => 'latest',
-            'region'      => 'eu-central-1',
-            'credentials' => [
-                'key'    => $bucketKey,
-                'secret' => $bucketSecret
-            ]
-        ]);
-        $params = [
-            'Bucket' => 'foo',
-            'Key'    => 'baz',
-            'Body'   => 'bar'
-        ];
+        //obj for AWSID and S3Client
+        $awsId = $this->getAwsID();
+        $s3client = $this->s3clientObject();
         //initialize counter
         $totalCount = 0;
         $bucketPidArr = array();
@@ -62,17 +49,19 @@ class BucketsController extends Controller
         $contents = array();
         $contents['Buckets'] = array();
         try{
+            $activeConfigId = $this->getAwsID();
             // Using operation methods creates command implicitly.
-            $activeConfigId = $this->getActiveConfig();
             $contents = $s3client->listBuckets();
-            foreach($contents['Buckets'] as $content){
-                if (preg_match('/www/',$content['Name'])){
+            foreach ($contents['Buckets'] as $key => $bucketDetails){
+                $bucketName = $bucketDetails['Name'];
+                if (preg_match('/www/',$bucketName)){
                     //get bucket first string
                     try {
-                        $location = $s3client->getBucketLocation(array('Bucket' => $content['Name']));
-                        $totalCount++;
-                        $firstString = substr($content['Name'], 0, strcspn($content['Name'], '1234567890'));
-                        $replaceCommonString = str_replace(array($firstString,'.com'), '' , $content['Name']);
+                        //get location and add it on Bucket array
+                        $location = $s3client->getBucketLocation(array('Bucket' => $bucketName));
+                        $contents['Buckets'][$key]['LocationConstraint'] = $location['LocationConstraint'];
+                        $firstString = substr($bucketName, 0, strcspn($bucketName, '1234567890'));
+                        $replaceCommonString = str_replace(array($firstString,'.com'), '' , $bucketName);
 
                         //replace first find string from string
                         $getUniqueNumber = $this->getNumericVal($replaceCommonString);
@@ -83,7 +72,7 @@ class BucketsController extends Controller
                             if(empty($checkBucketExist)){
                                 //add entry in Duplicate bucket
                                 $addDuplicateBucket               = new DuplicateBuckets();
-                                $addDuplicateBucket->bucket_name  = $content['Name'];
+                                $addDuplicateBucket->bucket_name  = $bucketName;
                                 $addDuplicateBucket->bucket_code  = $finalString;
                                 $addDuplicateBucket->duplicate_bucket_counter  = $getUniqueNumber;
                                 $addDuplicateBucket->aws_server_id  = $activeConfigId;
@@ -92,9 +81,9 @@ class BucketsController extends Controller
                                 DuplicateBuckets::where('bucket_code', "=", $finalString)->where('aws_server_id', "=", $activeConfigId)->update(['duplicate_bucket_counter' => $getUniqueNumber]);
                             }
                         }
+                        $totalCount++;
                     }
                     catch(\Exception $exception){
-
                     }
                 }
             }
@@ -110,17 +99,9 @@ class BucketsController extends Controller
             }
         }
         catch(\Exception $exception){
-            $xmlResponse = $exception->getAwsErrorCode();
-            if($awsName=='default_credentials'){
-                flash('Please active Aws Configuration first to process further! ','danger');
-            }else{
-//                flash($xmlResponse,'danger');
-                flash('Please active a valid Aws Configuration to process further! ','danger');
-            }
-            $totalBucketCount = 0;
-//            flash($xmlResponse,'danger');
+//            $xmlResponse = $exception->getAwsErrorCode();
+            flash('There is some error while processing, please try again later! ','danger');
         }
-
         //create master bucket PID data
         $masterBuckets = MasterBuckets::all();
         foreach($masterBuckets  as $key => $masterData){
@@ -136,14 +117,28 @@ class BucketsController extends Controller
             $bucketPidArr[$masterData['bucket_name']]['bucket_parameters'] = (!empty($getBucketParams)) ? $getBucketParams['bucket_parameters'] : '';
         }
 
+        //get records from DB
+//        $bucketList = DB::table('list_buckets')->skip(0)->take(10)->get();
+
+//        if(!empty($_REQUEST)){
+//            $bucketList = DB::table('list_buckets')->skip(0)->take(5)->get();
+//            return view('adminsOnly.buckets.index', compact('contents', 'masterBuckets', 'bucketPidArr', 'templateArr', 'bucketParamArr','allAwsServer','totalCount','awsId', 'bucketList'));
+//        }else{
+//            $bucketList = DB::table('list_buckets')->skip(0)->take(10)->get();
+//        }
+
+//        $bucketList = DB::table('list_buckets')->skip(0)->take(90)->get();
+//        $bucketList = DB::table('list_buckets')->skip(0)->take(90)->get();
+
+
+
         //get templates from DB that not to be shown in Buckets
         $templates = DB::table('bucket_templates')->select( DB::raw('group_concat(aws_name) AS template_names'))->first();
         $templateArr = array_filter(explode(',',$templates->template_names));
-		//list of all aws server
-        $status        =  "Inactive";
-        $allAwsServer  =  ConfigAuth::where('status', "=", $status)->get();
-		
-        return view('adminsOnly.buckets.index', compact('contents', 's3client', 'masterBuckets', 'bucketPidArr', 'templateArr', 'bucketParamArr','allAwsServer','totalCount'));
+        //code for het session//$awsId = 3;
+        $allAwsServer  =  ConfigAuth::where('id', "!=", '')->orderBy('id', 'desc')->get();
+        //return view session
+        return view('adminsOnly.buckets.index', compact('contents', 'masterBuckets', 'bucketPidArr', 'templateArr', 'bucketParamArr','allAwsServer','totalCount','awsId'));
     }
 
     /*
@@ -153,14 +148,16 @@ class BucketsController extends Controller
       */
 
     public function duplicator(){
+		
+		
         if(!empty($_POST['duplicate_for']) && !empty($_POST['duplicate_counter'])) {
             //get bucket details
             $bucket = $_POST['duplicate_for'];
             $bucketCounter = $_POST['duplicate_counter'];
             $bucketRegion = $_POST['duplicate_for_region'];
-
+            $awsId = $_POST['awsId'];
             //get bucket Regions
-//            $regionArr = $this->getRegions();
+             // $regionArr = $this->getRegions();
 
             //get bucket first string
             $firstString = substr($bucket, 0, strcspn($bucket, '1234567890'));
@@ -188,7 +185,8 @@ class BucketsController extends Controller
             }
 
             //create object for "S3Client"
-            $bucketAuthCredentials = $this->getAuthCredentials();
+            //$bucketAuthCredentials = $this->getAuthCredentials();
+			$bucketAuthCredentials  = $this->getCredentials($awsId);
             $bucketKey = $bucketAuthCredentials['key'];
             $bucketSecret = $bucketAuthCredentials['secret'];
             $s3client = new S3Client([
@@ -201,7 +199,6 @@ class BucketsController extends Controller
             ]);
             // Using operation methods creates command implicitly.
             $bucketArray = $s3client->listBuckets();
-
             $bucketSuccessResponse = array();
             for($counter = 1; $counter <= $bucketCounter; $counter++ ){
                 $activeConfigId = $this->getActiveConfig();
@@ -316,6 +313,15 @@ class BucketsController extends Controller
                             $location = $s3client->getBucketLocation(array(
                                 'Bucket' => $newBucketName
                             ));
+							
+							//For  User Action Log
+							$actionData['user_id']    = Auth::user()->id;
+						    $actionData['aws_id']     = $awsId;
+						    $actionData['action_performed']  = 'Duplicatior';
+						    $actionData['bucket_name']    = $newBucketName;
+						    $this->user_action_log($actionData);
+							
+							
                             $newBucketUrl = "http://".$newBucketName.".s3-website.".$location['LocationConstraint'].".amazonaws.com";
                             $bucketSuccessResponse[] = "$newBucketUrl";
                             //response in case of success if counter match!
@@ -327,6 +333,7 @@ class BucketsController extends Controller
                                     'type' => 'success',
                                     'message' => $bucketSuccessResponse,
                                 );
+								
                                 return json_encode($return);
                             }
                         }
@@ -342,7 +349,7 @@ class BucketsController extends Controller
                                 'type' => 'error',
                                 'message' => $message,
                             );
-                            return json_encode($return);
+							
                         }
                     } else {
                         $message = "Index.html file must be in your existing bucket, please add and try again later!";
@@ -352,13 +359,16 @@ class BucketsController extends Controller
                             'type' => 'error',
                             'message' => $message,
                         );
+						
                         return json_encode($return);
                     }
                 }
             }
+			
+			
         }
         else{
-            $message = "There is some error in the params posted by you, please check!";
+			
             //return response
             $return = array(
                 'value' => '100',
@@ -367,6 +377,8 @@ class BucketsController extends Controller
             );
             return json_encode($return);
         }
+
+
     }
 
     /*
@@ -374,26 +386,26 @@ class BucketsController extends Controller
      * created by BK
      * created on 2nd June'17
      */
-    public function deleteBucket(){
-        if(!empty($_POST)) {
+ 
+		
+	  public function deleteBucket(){
+		 if(!empty($_POST)) {
             $bucketName = $_POST['bucket_name'];
-            if(!empty($bucketName)){
+            $bucketRegion = $_POST['duplicate_for_region'];
+            $awsId = $_POST['awsId'];
+			
+            if(!empty($bucketName) && !empty($bucketRegion)){
                 try {
+
+
                     $firstString = substr($bucketName, 0, strcspn($bucketName, '1234567890'));
                     //replace string, get unique number and get final string of the BUCKET
                     $replaceCommonString = str_replace(array($firstString,'.com'), '' , $bucketName);
 
-                    //get bucket Regions
-                    $regionArr = $this->getRegions();
-                    $bucketRegion = 'fr';
-                    foreach ($regionArr as $regionKey => $regionCodeVal) {
-                        if (stristr($replaceCommonString, $regionKey) !== FALSE) {
-                            $bucketRegion = $regionKey;
-                        }
-                    }
                     //get region code
-                    $regionCode = (!empty($bucketRegion)) ? $regionArr[$bucketRegion] : "eu-central-1";
+                    $regionCode = (!empty($bucketRegion)) ? $bucketRegion : "eu-central-1";
                     if(empty($regionCode)){
+						
                         //return response
                         $return = array(
                             'type' => 'error',
@@ -402,7 +414,8 @@ class BucketsController extends Controller
                         return json_encode($return);
                     }
                     //create object for "S3Client"
-                    $bucketAuthCredentials = $this->getAuthCredentials();
+                    //$bucketAuthCredentials = $this->getAuthCredentials();
+					$bucketAuthCredentials  = $this->getCredentials($awsId);
                     $bucketKey = $bucketAuthCredentials['key'];
                     $bucketSecret = $bucketAuthCredentials['secret'];
                     $s3client = new S3Client([
@@ -425,7 +438,15 @@ class BucketsController extends Controller
                         'Bucket' => $bucketName
                     ));
 
+                    //For  User Action Log
+                    $actionData['user_id']     = Auth::user()->id;
+                    $actionData['aws_id']     = $awsId;
+                    $actionData['action_performed']  = 'Delete Bucket';
+                    $actionData['bucket_name']    = $bucketName;
+                    $this->user_action_log($actionData);
+
                     $message = "Success ";
+					
                     //return response
                     $return = array(
                         'type' => 'success',
@@ -444,6 +465,7 @@ class BucketsController extends Controller
                     return json_encode($return);
                 }
             }else{
+				
                 $message = "Bucket name cannot be empty, please check!";
                 //return response
                 $return = array(
@@ -454,6 +476,7 @@ class BucketsController extends Controller
                 return json_encode($return);
             }
         }else{
+			
             $message = "There is some error in the params posted by you, please check!";
             //return response
             $return = array(
@@ -463,114 +486,118 @@ class BucketsController extends Controller
             );
             return json_encode($return);
         }
+		
+
     }
+    
     /*
      * function to delete bucket in BULK
      * created by BK
      * created on 2nd June'17
      */
     public function deleteMultipleBuckets(){
-        if(!empty($_POST)) {
-            //get buckets
-            $buckets = $_POST['bucket_name'];
-            if(!empty($buckets)){
-                foreach($buckets as $key => $bucketName){
-                    $firstString = substr($bucketName, 0, strcspn($bucketName, '1234567890'));
-                    //replace string, get unique number and get final string of the BUCKET
-                    $replaceCommonString = str_replace(array($firstString,'.com'), '' , $bucketName);
+        
+                if(!empty($_POST['awsId']) && !empty($_POST['bucket_name'])) {
+                    //get buckets
+                    $awsId = $_POST['awsId'];
+                    $buckets = $_POST['bucket_name'];
+                    $postBucketNames = array();
+					
+                    if(!empty($buckets)){
+                        foreach($buckets as $key => $bucketName){
+                            $bucketRegion = '';
+                            if(strpos($bucketName, '___') !== false) {
+                                $explodeBucketNameRegion = explode('___', $bucketName);
+                                $bucketName = $explodeBucketNameRegion[0];
+                                $bucketRegion = $explodeBucketNameRegion[1];
+                            }
+							
+							//For Action Log						
+							$actionData['user_id']           = Auth::user()->id;
+							$actionData['aws_id']            = $awsId;
+							$actionData['action_performed']  = 'Bulk Delete';
+							$actionData['bucket_name']       = $bucketName;
+							$this->user_action_log($actionData);
+                            $postBucketNames[] = $bucketName;
+							
+							
+                            //get region code
+                            $regionCode = (!empty($bucketRegion)) ? $bucketRegion : "eu-central-1";
+                            if(empty($regionCode)){
+               
+               
+                                //return response
+                                $return = array(
+                                    'type' => 'error',
+                                    'message' => "Region code cannot be empty for $bucketRegion.",
+                                );
+                                return json_encode($return);
+                            }
 
-//                    $getUniqueNumber = $this->getNumericVal($replaceCommonString);
+                            //create object for "S3Client"
+                            //$bucketAuthCredentials = $this->getAuthCredentials();
+                            $bucketAuthCredentials  = $this->getCredentials($awsId);
 
-//                    //replace first find string from string
-//                    $finalString =  preg_replace("/$getUniqueNumber/", '', $replaceCommonString, 1);
-//                    //get region code from - required
-//                    $bucketRegion = substr($finalString, 1,2);
-//                    $regionCode = BucketRegions::where('region_value', "=", $bucketRegion)->first();
-//                    $regionCode = (!empty($regionCode['region_code'])) ? $regionCode['region_code'] : "eu-central-1";
-//                    if(empty($regionCode)){
-//                        //return response
-//                        $return = array(
-//                            'type' => 'error',
-//                            'message' => "Region code cannot be empty for $bucketRegion.",
-//                        );
-//                        return json_encode($return);
-//                    }
-
-                    //get bucket Regions
-                    $regionArr = $this->getRegions();
-                    $bucketRegion = 'fr';
-                    foreach ($regionArr as $regionKey => $regionCodeVal) {
-                        if (stristr($replaceCommonString, $regionKey) !== FALSE) {
-                            $bucketRegion = $regionKey;
+                            $bucketKey = $bucketAuthCredentials['key'];
+                            $bucketSecret = $bucketAuthCredentials['secret'];
+                            $s3client = new S3Client([
+                                'version'     => 'latest',
+                                'region'      => $regionCode,
+                                'credentials' => [
+                                    'key'    => $bucketKey,
+                                    'secret' => $bucketSecret
+                                ]
+                            ]);
+                            $cont = $s3client->getIterator('ListObjects', array('Bucket' => $bucketName));
+                            foreach ($cont as $fileDetails){
+                                $fileName = $fileDetails['Key'];
+                                $result = $s3client->deleteObject(array(
+                                    'Bucket' => $bucketName,
+                                    'Key'    => $fileName
+                                ));
+                            }
+                            $s3client->deleteBucket(array(
+                                'Bucket' => $bucketName
+                            ));
                         }
+                       
+                        $message = "Success ";
+                        $return = array(
+                            'type' => 'success',
+                            'message' => $message,
+                        );
+                        $bucketNames = implode(' , ',$postBucketNames);
+                        flash("$bucketNames bucket deleted successfully!");
+                        return json_encode($return);
                     }
-                    //get region code
-                    $regionCode = (!empty($bucketRegion)) ? $regionArr[$bucketRegion] : "eu-central-1";
-                    if(empty($regionCode)){
+                    else{
+                       
+                        $message = "Bucket name cannot be empty, please check!";
                         //return response
                         $return = array(
+                            'value' => '100',
                             'type' => 'error',
-                            'message' => "Region code cannot be empty for $bucketRegion.",
+                            'message' => $message,
                         );
                         return json_encode($return);
                     }
+                }else{
 
-
-                    //create object for "S3Client"
-                    $bucketAuthCredentials = $this->getAuthCredentials();
-                    $bucketKey = $bucketAuthCredentials['key'];
-                    $bucketSecret = $bucketAuthCredentials['secret'];
-                    $s3client = new S3Client([
-                        'version'     => 'latest',
-                        'region'      => $regionCode,
-                        'credentials' => [
-                            'key'    => $bucketKey,
-                            'secret' => $bucketSecret
-                        ]
-                    ]);
-                    $cont = $s3client->getIterator('ListObjects', array('Bucket' => $bucketName));
-                    foreach ($cont as $fileDetails){
-                        $fileName = $fileDetails['Key'];
-                        $result = $s3client->deleteObject(array(
-                            'Bucket' => $bucketName,
-                            'Key'    => $fileName
-                        ));
-                    }
-                    $s3client->deleteBucket(array(
-                        'Bucket' => $bucketName
-                    ));
+                   
+                    $message = "There is some error in the params posted by you, please check!";
+                    //return response
+                    $return = array(
+                        'value' => '100',
+                        'type' => 'error',
+                        'message' => $message,
+                    );
+                    return json_encode($return);
                 }
-                $message = "Success ";
-                $return = array(
-                    'type' => 'success',
-                    'message' => $message,
-                );
-                $bucketNames = implode(' , ',$_POST['bucket_name']);
-                flash("$bucketNames bucket deleted successfully!");
-                return json_encode($return);
-            }
-            else{
-                $message = "Bucket name cannot be empty, please check!";
-                //return response
-                $return = array(
-                    'value' => '100',
-                    'type' => 'error',
-                    'message' => $message,
-                );
-                return json_encode($return);
-            }
-        }else{
-            $message = "There is some error in the params posted by you, please check!";
-            //return response
-            $return = array(
-                'value' => '100',
-                'type' => 'error',
-                'message' => $message,
-            );
-            return json_encode($return);
-        }
-    }
 
+           
+            }
+	    
+    
     public function getNumericVal ($str) {
         preg_match_all('/\d+/', $str, $matches);
         return (!empty($matches[0][0])) ? $matches[0][0] : '';
@@ -638,10 +665,19 @@ class BucketsController extends Controller
     * created by BK
     * created on 8th June'17
     */
-    public function createChildBucket()
+  
+   public function createChildBucket()
     {
-        if(!empty($_POST)){
+	
+		 if(!empty($_POST)){
             //get master bucket details
+			if (session::has('awsId')){
+				$awsId = session()->get('awsId');
+			}else{
+				$awsId = $this->getActiveConfig();
+			}
+			
+            //$awsId = $_POST['awsId'];
             $masterBucketID = $_POST['master_bucket'];
             $masterBucketDetails = MasterBuckets::find($masterBucketID);
 
@@ -695,7 +731,11 @@ class BucketsController extends Controller
              $createBucketResponse = json_decode($this->duplicateUsingMasterTemplate($bucketParams));
 
             if($createBucketResponse->type=='success'){
-                $updatedCounter = $createBucketResponse->bucket_updated_counter;
+			
+			
+			
+			 
+				$updatedCounter = $createBucketResponse->bucket_updated_counter;
                 $childBucketName = $createBucketResponse->bucket_url;
 				$serverName         = $createBucketResponse->bucket_created_server_name;
                 //update counter in master bucket table
@@ -704,21 +744,37 @@ class BucketsController extends Controller
                 $activeConfigId = $this->getActiveConfig();
                 DuplicateBuckets::where('bucket_code', $masterBucketName)->where('aws_server_id', "=", $activeConfigId)->update(['duplicate_bucket_counter' => $updatedCounter]);
 
+
+                //For Log Action
+                $actionData['user_id']     = Auth::user()->id;
+                $actionData['aws_id']     = $awsId;
+                $actionData['action_performed']  = 'Add Bucket';
+                $actionData['bucket_name']    = $masterBucketName;
+                $this->user_action_log($actionData);
+
                 $message = "$childBucketName bucket has been added successfully on Sever : $serverName !";
                 flash($message);
                 //return response
-                $return = array(
+				$return = array(
                     'type' => 'success',
                     'message' => $message,
                 );
+				
                 return json_encode($return);
+				
+				
+		   
             }else{
+				
                 return json_encode($createBucketResponse);
             }
+			
+				
         }
-    }
+		
+	}
 
-    /*
+  /*
     * function to make bucket duplicate
     * created by BK
     * created on 2nd June'17
@@ -733,7 +789,8 @@ class BucketsController extends Controller
             $bucketBasicName = $bucketParams['bucket_basic_name'];
 
             //create object for "S3Client"
-            $bucketAuthCredentials = $this->getAuthCredentials();
+            //$bucketAuthCredentials = $this->getAuthCredentials();
+			$bucketAuthCredentials  = $this->getCredentials($awsId);
             $bucketKey = $bucketAuthCredentials['key'];
             $bucketSecret = $bucketAuthCredentials['secret'];
             $s3client = new S3Client([
@@ -1018,16 +1075,20 @@ class BucketsController extends Controller
 		$duplciateFrom          = Input::get('duplicate_for');
 		$newBucketName          = Input::get('new_bucket_name');
 		$region                 = Input::get('duplicateToAwsRegion');
+		$awsId                  = Input::get('awsId');
 		$status                 = "Active";
-		$awsServerActive        = ConfigAuth::where('status', "=", $status)->first();
+		$awsServerActive 		= ConfigAuth::where('id', "=",$awsId)->first();
 		$activeServerKey        = $awsServerActive['key'];
 		$actvieServerSecretKey  = $awsServerActive['secret'];
 		$copyToServerId         = Input::get('aws_server_id');
+		
+		
 		$allAwsServer           = ConfigAuth::where('id', "=", $copyToServerId)->first();
 		$toServerKey            = $allAwsServer['key'];
 		$toServerSecretKey      = $allAwsServer['secret'];
 		$toServerName           = $allAwsServer['aws_name'];
 		$bucket 		        = $duplciateFrom;
+       
 		//create object for "S3Client"
 		$s3clientActive               = new S3Client([
 			'version'     => 'latest',
@@ -1134,6 +1195,15 @@ class BucketsController extends Controller
 						'Bucket' => $newBucketName
 					));
 					$newBucketUrl = "http://".$newBucketName.".s3-website.".$location['LocationConstraint'].".amazonaws.com";
+
+
+                    //For Log Action
+                    $actionData['user_id']     = Auth::user()->id;
+                    $actionData['aws_id']     = $awsId;
+                    $actionData['action_performed']  = 'Copy To Aws';
+                    $actionData['bucket_name']    = $newBucketName;
+                    $this->user_action_log($actionData);
+                    
 					//response in case of success if counter match!
 					$finalMessage =  $newBucketUrl.' bucket successfully created on new server'.$toServerName;
 					flash($finalMessage);
@@ -1514,11 +1584,12 @@ class BucketsController extends Controller
         $phoneNumber            = input::get('phone_number');
         $bucketName             = input::get('bucket_name');
         $region                 = input::get('region');
+		$awsId                  = Input::get('awsId');
         $this->create_save_xml_fie($phoneNumber);
         $awsFolderPath          = "assests/phonenumber.xml";
         $tmp_name               = public_path('template_data').DIRECTORY_SEPARATOR."phonenumber.xml";
         $status                 = "Active";
-        $allAwsServer           = ConfigAuth::where('status', "=", $status)->first();
+        $allAwsServer 			= ConfigAuth::where('id', "=",$awsId)->first();
         $toServerKey            = $allAwsServer['key'];
         $toServerSecretKey      = $allAwsServer['secret'];
         $s3clientToMove               = new S3Client([
@@ -1559,6 +1630,212 @@ class BucketsController extends Controller
         return json_encode($return);
        }
     }
+	
+	
+	
+	  /*
+     *  create duplcaite with custom counter
+     *  @author : nk
+     */
+    public function duplicate_with_custom_counter()
+    {
+     
+                if(!empty($_POST['duplicate_for']) && !empty($_POST['duplicate_counter'])) {
+
+                    if (session::has('awsId')){
+                        $awsId = session()->get('awsId');
+                    }else{
+                        $awsId = $this->getActiveConfig();
+                    }
+
+                    //get bucket details
+                    $bucket             = $_POST['duplicate_for'];
+                    $bucketCounter      = $_POST['duplicate_counter'];
+                    $bucketRegion       = $_POST['duplicate_for_region'];
+                    $awsId              = $_POST['awsId'];
+                 
+                    //get bucket first string
+                    $firstString            = substr($bucket, 0, strcspn($bucket, '1234567890'));
+                    $replaceCommonString    = str_replace(array($firstString,'.com'), '' , $bucket);
+                    //replace first find string from string
+                    $getUniqueNumber        = $this->getNumericVal($replaceCommonString);
+                    $finalString            = preg_replace("/$getUniqueNumber/", '', $replaceCommonString, 1);
+                    if(empty($bucketRegion))
+                    {
+                        $return = array(
+                            'type' => 'error',
+                            'message' => "Region code cannot be empty for $bucketRegion.",
+                        );
+                        return json_encode($return);
+                    }
+                    //create object for "S3Client"
+                    $bucketAuthCredentials  = $this->getCredentials($awsId);
+                    $bucketKey              = $bucketAuthCredentials['key'];
+                    $bucketSecret           = $bucketAuthCredentials['secret'];
+                    $s3client = new S3Client([
+                        'version'     => 'latest',
+                        'region'      => $bucketRegion,
+                        'credentials' => [
+                            'key'    => $bucketKey,
+                            'secret' => $bucketSecret
+                        ]
+                    ]);
+                    // Using operation methods creates command implicitly.
+                    //$bucketArray            = $s3client->listBuckets();
+                    $bucketSuccessResponse  = array();
+                    for($counter = 1; $counter <= $bucketCounter; $counter++ ){
+						$newCounter         = input::get('new_aws_counter');
+                        $setCounter     = $counter-1;
+                        $newCounter     = $newCounter+$setCounter;
+                        //create next new bucket name
+                        $newBucketName = $firstString.$newCounter.$finalString.'.com';
+                        //create string policy for Bucket
+                        $stringPolicy ='{
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "Allow Public Access to All Objects",
+                            "Effect": "Allow",
+                            "Principal": "*",
+                            "Action": "s3:GetObject",
+                            "Resource": "arn:aws:s3:::'.$newBucketName.'/*"
+                        }
+                                ]
+                                        }';
+                        //get list of all buckets and check if bucket name already exist
+                        $existName  = false;
+                        $result     = json_encode($s3client->doesBucketExist($newBucketName));
+                        if($result=='true')
+                        {
+                            $existName = true;
+                        }
+
+
+
+                        //For Log Action
+                        $actionData['user_id']     = Auth::user()->id;
+                        $actionData['aws_id']     = $awsId;
+                        $actionData['action_performed']  = 'Duplicate with Customer Counter';
+                        $actionData['bucket_name']    = $newBucketName;
+                        $this->user_action_log($actionData);
+
+                        
+                        //if name already exist, then return error message
+                        if ($existName) {
+                            $message = "'$newBucketName' bucket already exist, please try with some other name!";
+                            //return response
+                            $return = array(
+                                'value' => '100',
+                                'type' => 'error',
+                                'message' => $message,
+                            );
+                           
+                            return json_encode($return);
+                        }
+                        else {
+                            //check index.html file for existing bucket
+                            $existIndex = false;
+                            $existingBucket = $s3client->listObjects(array('Bucket' => $bucket));
+                            foreach ($existingBucket['Contents'] as $existFiles) {
+                                if ($existFiles['Key'] == 'index.html') {
+                                    $existIndex = true;
+                                } else {
+                                    $existIndex = false;
+                                }
+                            }
+                            //if index file exist, then create bucket
+                            if ($existIndex) {
+                                try{
+                                    //trigger exception in a "try" block
+                                    $result3 = $s3client->createBucket([
+                                        'Bucket' => $newBucketName,
+                                    ]);
+                                    $stp = $s3client->listObjects(array('Bucket' => $bucket));
+                                    foreach ($stp['Contents'] as $object) {
+                                        $s3client->copyObject(array(
+                                            'Bucket' => $newBucketName,
+                                            'Key' => $object['Key'],
+                                            'CopySource' => $bucket . '/' . $object['Key']
+                                        ));
+                                    }
+                                    $arg = array(
+                                        'Bucket' => $newBucketName,
+                                        'WebsiteConfiguration' => array(
+                                            'ErrorDocument' => array('Key' => 'error.html',),
+                                            'IndexDocument' => array('Suffix' => 'index.html',),
+                                        ),
+                                    );
+                                    $result2 = $s3client->putBucketWebsite($arg);
+                                    $result3 = $s3client->putBucketPolicy([
+                                        'Bucket' => $newBucketName,
+                                        'Policy' => $stringPolicy,
+                                    ]);
+                                    //get location for new bucket url
+                                    $location = $s3client->getBucketLocation(array(
+                                        'Bucket' => $newBucketName
+                                    ));
+                                    $newBucketUrl = "http://".$newBucketName.".s3-website.".$location['LocationConstraint'].".amazonaws.com";
+                                    $bucketSuccessResponse[] = "$newBucketUrl";
+                                    //response in case of success if counter match!
+                                    if($counter==$bucketCounter){
+                                        $finalMessage =  implode(' , ', $bucketSuccessResponse).' bucket successfully created!';
+                                        flash($finalMessage);
+                                        //return response
+                                        $return = array(
+                                            'type' => 'success',
+                                            'message' => $bucketSuccessResponse,
+                                        );
+                                       
+                                        return json_encode($return);
+                                    }
+                                }
+                                catch(\Exception $exception){
+                                    $xmlResponse = $exception->getAwsErrorCode();
+                                    if($xmlResponse=="BucketAlreadyExists"){
+                                        $message = "Bucket already exists. Please change the URL.";
+                                    }else{
+                                        $message = $xmlResponse;
+                                    }
+                                    $return = array(
+                                        'value' => '2',
+                                        'type' => 'error',
+                                        'message' => $message,
+                                    );
+                                   
+                                    return json_encode($return);
+                                }
+                            } else {
+                                $message = "Index.html file must be in your existing bucket, please add and try again later!";
+                                //return response
+                                $return = array(
+                                    'value' => '100',
+                                    'type' => 'error',
+                                    'message' => $message,
+                                );
+                              
+                                return json_encode($return);
+                            }
+                        }
+                    }
+
+                   
+                }
+                else{
+                    
+                    $message = "There is some error in the params posted by you, please check!";
+                    //return response
+                    $return = array(
+                        'value' => '100',
+                        'type' => 'error',
+                        'message' => $message,
+                    );
+                    return json_encode($return);
+                }
+        
+   
+    }
+	
+	
 	 /*
    * function to create analytics file
    * created by NK
@@ -1578,6 +1855,25 @@ class BucketsController extends Controller
         $file           = fopen($jsFilePath."analytics.js","w");
         fwrite($file,$script);
         fclose($file);
+    }
+	
+	/*
+   *  @author : nk 23 aug 2015
+   *  @var : aws_id,user_id,action_performed
+   *  @Desc : To captuer each user action on each server
+   */
+    public function user_action_log($actionData)
+    {
+        $user                       = new UserActionlog;
+        $user_id                    = $actionData['user_id'];
+        $aws_id                     = $actionData['aws_id'];
+        $action_performed           = $actionData['action_performed'];
+        $bucket_name                = $actionData['bucket_name'];
+        $user->user_id              = $user_id;
+        $user->aws_id               = $aws_id;
+        $user->bucket_name          = $bucket_name;
+        $user->action_performed     = $action_performed;
+        $user->save();
     }
 	
 	

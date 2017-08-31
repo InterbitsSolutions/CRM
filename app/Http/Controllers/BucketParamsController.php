@@ -1,33 +1,11 @@
 <?php
 namespace App\Http\Controllers;
 
-use App\ConfigAuth;
 use App\Models\BucketParams;
-use App\Models\User;
-use App\DuplicateBuckets;
-use App\Models\BucketBrowsers;
-use App\Models\BucketFiles;
-use App\Models\BucketFolders;
 use App\Models\BucketRegions;
 use App\Models\BucketShortCodes;
-use App\Models\BucketTemplates;
-use App\Models\MasterBuckets;
-use App\Models\MasterBucketsCounter;
-use App\Models\TemplateFiles;
-use App\Models\TemplateFolders;
-use Aws\DirectoryService\DirectoryServiceClient;
 use Illuminate\Support\Facades\Redirect;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use App\Http\Requests\StoreUserRequest;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Input;
-use Aws\S3\S3Client;
-use App\Classes\S3;
-use Mockery\CountValidator\Exception;
-use Storage;
 
-use Google\Cloud\Storage\StorageClient;
 
 class BucketParamsController extends Controller
 {
@@ -39,7 +17,6 @@ class BucketParamsController extends Controller
     /*
     * function to list bucket params
     * created by BK
-    * created on 28th June'17
     */
     public function listBucketParams()
     {
@@ -51,7 +28,6 @@ class BucketParamsController extends Controller
     /*
      * function to manage Bucket params
      * created by BK
-     * created on 28th June'17
      */
     public function addBucketParams()
     {
@@ -63,16 +39,12 @@ class BucketParamsController extends Controller
             //check if record exist or not
             $checkBucketParam = BucketParams::where('bucket_region', "=", $bucketRegion)->where('bucket_short_code', "=", $bucketShortCode)->first();
             if(empty($checkBucketExist)){
-                //add bucket in DB
                 $addBucketParam               = new BucketParams();
                 $addBucketParam->bucket_region  = $bucketRegion;
                 $addBucketParam->bucket_short_code  = $bucketShortCode;
                 $addBucketParam->bucket_parameters  = $bucketParameters;
                 $addBucketParam->save();
-                /*
-                 * section to create master bucket
-                 */
-                $insertedId = $addBucketParam->id;
+                
                 $message = "Bucket Parameters has been added successfully!";
                 flash($message);
                 return Redirect::to("list-bucket-params");
@@ -91,7 +63,6 @@ class BucketParamsController extends Controller
     /*
     * function to edit bucket params
     * created by BK
-    * created on 28th June'17
     */
     public function editBucketParams($id)
     {
@@ -99,7 +70,6 @@ class BucketParamsController extends Controller
             $bucketRegion = $_POST['bucket_region'];
             $bucketShortCode = $_POST['bucket_short_code'];
             $bucketParameters = $_POST['bucket_parameters'];
-            //add bucket in DB
             $addBucketParam = BucketParams::find($id);
             $addBucketParam->bucket_region  = $bucketRegion;
             $addBucketParam->bucket_short_code  = $bucketShortCode;
@@ -117,13 +87,11 @@ class BucketParamsController extends Controller
     /*
      * function to delete bucket params
      * created by BK
-     * created on 28th June'17
      */
     public function deleteBucketParams($bucketID)
     {
         if(!empty($bucketID)){
             $whereArray = array('id'=>$bucketID);
-            //delete files from DB
             BucketParams::where($whereArray)->delete();
             flash('Bucket params deleted successfully!');
             return Redirect::to("list-bucket-params");

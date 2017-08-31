@@ -33,77 +33,9 @@ class PagesController extends Controller
      */
     public function index()
     {
-        //create object for "S3Client"
-        $awsBucketsArr = $this->getAwsBuckets();
-		$bucketAuthCredentials = $this->getAuthCredentials();
-        $bucketKey = $bucketAuthCredentials['key'];
-        $bucketSecret = $bucketAuthCredentials['secret'];
-        $awsName = $bucketAuthCredentials['aws_name'];
-
-        $s3client = new S3Client([
-            'version'     => 'latest',
-            'region'      => 'eu-central-1',
-            'credentials' => [
-                'key'    => $bucketKey,
-                'secret' => $bucketSecret
-            ]
-        ]);
-        $graphColorCodes = array('#fb9678', '#01c0c8', '#4F5467', '#00c292', '#03a9f3', '#ab8ce4', '#13dafe', '#99d683', '#B4C1D7');
-        //get list of all buckets and check if bucket name already exist
-        try{
-            $contents 		  = $s3client->listBuckets();
-            $masterBucketCount = MasterBuckets::count();
-            //count buckets according to network
-            $data = array();
-            $totalBucketCount = 0;
-            foreach ($contents['Buckets'] as $key =>$bucketData){
-                try
-                {
-                    $location = $s3client->getBucketLocation(array('Bucket' => $bucketData['Name'] ));
-                    if (preg_match('/www/',$bucketData['Name'])){
-                        $bucketName = $bucketData['Name'];
-                        //get bucket first string
-                        $firstString = substr($bucketName, 0, strcspn($bucketName, '1234567890'));
-                        $replaceCommonString = str_replace(array($firstString,'.com'), '' , $bucketName);
-                        $getUniqueNumber = $this->getNumericVal($replaceCommonString);
-                        if(!empty($getUniqueNumber)) {
-                            $finalString = preg_replace("/$getUniqueNumber/", '', $replaceCommonString, 1);
-                        }else{
-                            $finalString = $replaceCommonString;
-                        }
-                        if(array_key_exists($finalString,$data)){
-                            $data[$finalString][] = $finalString;
-                        }else{
-                            $data[$finalString][] = $finalString;
-                        }
-                    }
-                    $totalBucketCount++;
-                }
-                catch(\Exception $exception){
-                }
-            }
-        }
-        catch(\Exception $exception){
-            //set default params
-            $totalBucketCount = 0;
-            $masterBucketCount = 0;
-            $data = array();
-            $contents = array();
-            $contents['Buckets'] = array();
-
-            //return response
-            $xmlResponse = $exception->getAwsErrorCode();
-            if($awsName=='default_credentials'){
-                if(Auth::check()) {
-                    // user is logged in
-                    flash('Please active Aws Configuration first to process further! ','danger');
-                }
-            }else{
-//                flash($xmlResponse,'danger');
-                flash('Please active a valid Aws Configuration to process further! ','danger');
-            }
-        }
-        return view('dashboard.home', ['user' => Auth::user(),'contents'=>$contents,'masterBucketCount'=>$masterBucketCount, 'awsBucketsArr'=>$awsBucketsArr, 'graphColorCodes'=>$graphColorCodes,'data'=>$data,'totalBucketCount'=>$totalBucketCount]);
+        $totalBucketCount = 0;
+        $masterBucketCount = 0;
+        return view('dashboard.home', ['user' => Auth::user(), 'masterBucketCount'=>$masterBucketCount, 'totalBucketCount'=>$totalBucketCount]);
     }
 
     public function showUpdatePasswordForm()
@@ -141,5 +73,78 @@ class PagesController extends Controller
 	public function getNumericVal ($str) {
         preg_match_all('/\d+/', $str, $matches);
         return (!empty($matches[0][0])) ? $matches[0][0] : '';
+    }
+
+    /*
+     * function to get Dashboard Content
+     * created by BK
+     * created on 24th Aug'17
+     */
+    public function getDashboardContent(){
+        //create object for S3client
+        $s3Obj = $this->s3clientObject();
+        $masterBucketCount = MasterBuckets::count();
+        $contents = $s3Obj->listBuckets();
+        $data = array();
+        $totalBuckets = 0;
+        foreach ($contents['Buckets'] as $key =>$bucketData){
+            try
+            {
+                $s3Obj->getBucketLocation(array('Bucket' => $bucketData['Name'] ));
+                if (preg_match('/www/',$bucketData['Name'])){
+                    $bucketName = $bucketData['Name'];
+                    //get bucket first string
+                    $firstString = substr($bucketName, 0, strcspn($bucketName, '1234567890'));
+                    $replaceCommonString = str_replace(array($firstString,'.com'), '' , $bucketName);
+                    $getUniqueNumber = $this->getNumericVal($replaceCommonString);
+                    if(!empty($getUniqueNumber)) {
+                        $finalString = preg_replace("/$getUniqueNumber/", '', $replaceCommonString, 1);
+                    }else{
+                        $finalString = $replaceCommonString;
+                    }
+                    if(array_key_exists($finalString,$data)){
+                        $data[$finalString][] = $finalString;
+                    }else{
+                        $data[$finalString][] = $finalString;
+                    }
+                }
+                $totalBuckets++;
+            }
+            catch(\Exception $exception){
+            }
+        }
+        //create HTML for buckets
+        if(!empty($data)){
+            rsort($data);
+            $bucketHTML = '';
+            foreach($data as $dataKey => $dataVal) {
+                $bucketName = ($dataVal[0]!=""?$dataVal[0]:"N/A");
+                $bucketCounter = count($dataVal);
+                $bucketUrl = url('/buckets?type=dashboard&x=').$bucketName .('&bcnt=').$bucketCounter;
+                $counterClass = ($bucketCounter>10) ? "bucket-count count10" : "bucket-count";
+                $bucketClass = ($bucketCounter>10) ? "bucket-icon bucket10" : "bucket-icon";
+                $bucketHTML .= '<div class="col-lg-4 col-md-4 col-sm-4 col-xs-6">
+                                    <a href="'.$bucketUrl.'">
+                                        <div class="bucket_bg_value">
+                                            <span class="'.$counterClass.'">'.$bucketCounter.'</span>
+                                            <div class="'.$bucketClass.'"><i class="fa fa-shopping-basket fa-2x"></i></div>
+                                            <div class="text-bucket">'.$bucketName.'</div>
+                                        </div>
+                                    </a>
+                                 </div>';
+            }
+        }
+        //get AWS bucket Array for Donut graph
+        $awsBucketsArr = $this->getAwsBuckets();
+
+        //return response
+        $return = array(
+            'type' => 'success',
+            'masterBuckets' => $masterBucketCount,
+            'totalBuckets' => $totalBuckets,
+            'awsBucketData' => $awsBucketsArr,
+            'bucketHTML' => $bucketHTML
+        );
+        return json_encode($return);
     }
 }

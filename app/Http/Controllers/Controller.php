@@ -14,7 +14,7 @@ use ZipArchive;
 use RecursiveIteratorIterator;
 use RecursiveDirectoryIterator;
 use mysqli;
-
+use Illuminate\Support\Facades\Session;
 
 class Controller extends BaseController
 {
@@ -25,18 +25,29 @@ class Controller extends BaseController
     * created on 2nd June
     */
     public function getAuthCredentials(){
-        $getAuthCredentials = ConfigAuth::where('status', "=", 'active')->first();
+			//added for session
+		if (session::has('awsId'))
+        {
+            $getAuthCredentials = ConfigAuth::where('id', "=",session()->get('awsId'))->first();
+        }
+        else
+        {
+            $getAuthCredentials = ConfigAuth::where('status', "=", 'active')->first();
+		}
+        
         $returnCredentials = array();
         if(!empty($getAuthCredentials)){
             $returnCredentials['key'] = $getAuthCredentials['key'];
             $returnCredentials['secret'] = $getAuthCredentials['secret'];
             $returnCredentials['aws_counter'] = $getAuthCredentials['aws_counter'];
             $returnCredentials['aws_name'] = $getAuthCredentials['aws_name'];
+			$returnCredentials['aws_id']            = $getAuthCredentials['id'];
         }else{
             $returnCredentials['key'] = 'AKIAJLV6DIJLVNQFOYNA';
             $returnCredentials['secret'] = '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';
             $returnCredentials['aws_counter'] = '10000';
             $returnCredentials['aws_name'] = 'default_credentials';
+			$returnCredentials['id']            = 1;
         }
         return $returnCredentials;
     }
@@ -60,6 +71,7 @@ class Controller extends BaseController
                 'secret' => $bucketSecret
             ]
         ]);
+        $returnMessage = '';
         //get list of all buckets and check if bucket name already exist
         try{
             $getContent = $s3client->listBuckets();
@@ -77,17 +89,16 @@ class Controller extends BaseController
             $xmlResponse = $exception->getAwsErrorCode();
             if($awsName=='default_credentials'){
                 if(Auth::check()) {
-                    // user is logged in
-                    flash('Please active Aws Configuration first to process further! ','danger');
+                    $returnMessage = 'Please active Aws Configuration first to process further!';
+                    flash($returnMessage,'danger');
                 }
             }else{
-//                flash($xmlResponse,'danger');
-                flash('Please active a valid Aws Configuration to process further! ','danger');
+                $returnMessage = 'Please active a valid Aws Configuration to process further!';
+                flash($returnMessage,'danger');
             }
             $totalBucketCount = 0;
-//            flash($xmlResponse,'danger');
         }
-        return $totalBucketCount;
+        return $totalBucketCount.'_'.$returnMessage;
     }
 
     /*
@@ -317,12 +328,12 @@ class Controller extends BaseController
         }
     }
 	//Get All Modules for Super Admin
-    public function getAllModules(){
+   public function getAllModules(){
         if(Auth::user()){
-            $all_modules = DB::select('select modules.id,modules.module_name from modules');
+            $all_modules = DB::select('select modules.id,modules.module_name from modules order by apperance_index');
             return $all_modules;
         }
-    }
+    }  
 	
 	//Getting All url's for the provided Modules
     public function filter($allowedModules){
@@ -387,5 +398,40 @@ class Controller extends BaseController
       }
       return true;
     }
+    /*
+     * function to return S3 client object
+     * created by BK
+     * created on 24th Aug'17
+     */
+    public function s3clientObject(){
+        //get Credentials
+        $awsId = $this->getAwsID();
+        $bucketAuthCredentials  = $this->getCredentials($awsId);
+        $bucketKey = $bucketAuthCredentials['key'];
+        $bucketSecret = $bucketAuthCredentials['secret'];
 
+        //create object for "S3Client"
+        $s3client = new S3Client([
+            'version'     => 'latest',
+            'region'      => 'eu-central-1',
+            'credentials' => [
+                'key'    => $bucketKey,
+                'secret' => $bucketSecret
+            ]
+        ]);
+        return $s3client;
+    }
+    /*
+    * function to return current AWS ID
+    * created by BK
+    * created on 29th Aug'17
+    */
+    public function getAwsID(){
+        if (session::has('awsId')){
+            $awsId = session()->get('awsId');
+        }else{
+            $awsId = $this->getActiveConfig();
+        }
+        return $awsId;
+    }
 }

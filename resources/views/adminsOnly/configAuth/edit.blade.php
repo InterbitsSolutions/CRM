@@ -39,25 +39,7 @@
                   <div class="col-md-12">
                       <input type="text" id="example-text" name="aws_counter" class="form-control" value="{{ $config->aws_counter }}" placeholder="Secret" required="">
                   </div>
-              </div>
-              {{--<div class="form-group">--}}
-                  {{--<label class="col-md-12" for="example-text">Is Primary Network?</label>--}}
-                  {{--<div class="col-md-12">--}}
-                      {{--<p>--}}
-                          {{--Yes <input type="radio" name="primary_network" value="yes" {{ ($config->primary_network=='yes') ? 'checked' : ''}}>--}}
-                          {{--No <input type="radio" name="primary_network" value="no" {{ ($config->primary_network=='no') ? 'checked' : ''}}>--}}
-                      {{--</p>--}}
-                  {{--</div>--}}
-              {{--</div>--}}
-              {{--<div class="form-group">--}}
-                {{--<label class="col-md-12" for="example-text">Status</label>--}}
-                {{--<div class="col-md-12">--}}
-                  {{--<p>--}}
-                     {{--Active <input type="radio" name="status" value="active" {{$activeCheck}}>--}}
-                     {{--In-Active <input type="radio" name="status" value="inactive" {{$inActiveCheck}} >--}}
-                  {{--</p>--}}
-                {{--</div>--}}
-              {{--</div>--}}
+              </div>              
               <button type="submit" class="btn btn-info waves-effect waves-light m-r-10">Submit</button>
               <button type="button" onclick="javascript:history.go(-1)" class="btn btn-inverse waves-effect waves-light">Cancel</button>
             </form>

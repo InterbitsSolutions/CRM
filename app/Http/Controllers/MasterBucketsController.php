@@ -1,6 +1,8 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\ConfigAuth;
+use Illuminate\Support\Facades\Auth;
 use App\Models\BucketBrowsers;
 use App\Models\BucketFiles;
 use App\Models\BucketFolders;
@@ -8,6 +10,7 @@ use App\Models\BucketRegions;
 use App\Models\BucketShortCodes;
 use App\Models\BucketTemplates;
 use App\Models\MasterBuckets;
+use App\Models\UserActionlog;
 use App\Models\MasterBucketsCounter;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Http\Request;
@@ -28,8 +31,9 @@ class MasterBucketsController extends Controller
     public function listMasterBuckets()
     {
         $totalAwsBuckets = $this->countBuckets();
-        $buckets = MasterBuckets::join('bucket_templates', 'bucket_templates.id', '=','master_buckets.bucket_template')
+        $buckets = MasterBuckets::leftjoin('bucket_templates', 'bucket_templates.id', '=','master_buckets.bucket_template')
             ->select('master_buckets.id','bucket_name','bucket_region','bucket_short_code','bucket_browser','bucket_template','bucket_phone_number','bucket_pid','bucket_analytics_id', 'template_name', 'ringba_code')->get();
+		
         return view('adminsOnly.masterBuckets.viewMaster', compact('buckets', 'totalAwsBuckets'));
     }
 
@@ -41,6 +45,8 @@ class MasterBucketsController extends Controller
     public function addMasterBucket()
     {
         if(!empty($_POST)){
+			
+			try {
             $bucketRegion = $_POST['bucket_region'];
             $bucketShortCode = $_POST['bucket_short_code'];
             $bucketBrowser = $_POST['bucket_browser'];
@@ -61,7 +67,7 @@ class MasterBucketsController extends Controller
 
             //get active config id
 
-            $activeConfigId = $this->getActiveConfig();
+            $activeConfigId = $this->getAwsID();
             if(empty($checkBucketExist)){
                 //add bucket in DB
                 $addBucket               = new MasterBuckets();
@@ -79,6 +85,14 @@ class MasterBucketsController extends Controller
                 /*
                  * section to create master bucket
                  */
+
+                //For Log Action
+                $actionData['user_id'] = Auth::user()->id;
+                $actionData['aws_id'] = $activeConfigId;
+                $actionData['action_performed'] = 'Add Master Bucket';
+                $actionData['bucket_name'] = $bucketName;
+                $this->user_action_log($actionData);
+                
                 $insertedId = $addBucket->id;
                 $message = "'$bucketName' Bucket has been added successfully!";
                 flash($message);
@@ -88,6 +102,13 @@ class MasterBucketsController extends Controller
                 flash($message, 'danger');
                 return Redirect::to('add-master-bucket');
             }
+		}//end try
+		catch (\Aws\S3\Exception\S3Exception $e)  {
+				$message = $e->getMessage();
+				$errorMessage = 'There is some error while adding master Bucket. Please try again later!'; 
+				flash($errorMessage, "danger");
+				return Redirect::to('add-master-bucket');
+			   }
         }else{
             $activeConfigId = $this->getActiveConfig();
             $bucketRegions = BucketRegions::get();
@@ -106,6 +127,9 @@ class MasterBucketsController extends Controller
     public function editMasterBucket($id)
     {
         if(!empty($_POST)){
+			
+            try {
+				
             $bucketRegion = $_POST['bucket_region'];
             $bucketShortCode = $_POST['bucket_short_code'];
             $bucketBrowser = $_POST['bucket_browser'];
@@ -124,7 +148,7 @@ class MasterBucketsController extends Controller
             $bucketName = $bucketShortCode[0].$bucketRegion.$bucketBrowser.$bucketShortCode[1].$last4Char;
 
             //get active config id
-            $activeConfigId = $this->getActiveConfig();
+            $activeConfigId = $this->getAwsID();
             $checkBucketExist = MasterBuckets::where('bucket_name', "=", $bucketName)->where('aws_server_id', "=", $activeConfigId)->first();
 
             if(empty($checkBucketExist)){
@@ -143,6 +167,13 @@ class MasterBucketsController extends Controller
                 /*
                  * section to create master bucket
                  */
+                //For Log Action
+                $actionData['user_id'] = Auth::user()->id;
+                $actionData['aws_id'] = $activeConfigId;
+                $actionData['action_performed'] = 'Edit Master Bucket';
+                $actionData['bucket_name'] = $bucketName;
+                $this->user_action_log($actionData);
+                
                 $message = "'$bucketName' Bucket updated successfully!";
                 flash($message);
                 return Redirect::to("list-master-buckets");
@@ -158,10 +189,27 @@ class MasterBucketsController extends Controller
                 $addBucket->bucket_analytics_id  = $bucketAnalyticID;
 				 $addBucket->ringba_code  = $ringbaCode;
                 $addBucket->save();
+                
+                //For Log Action
+                $actionData['user_id'] = Auth::user()->id;
+                $actionData['aws_id'] = $activeConfigId;
+                $actionData['action_performed'] = 'Edit Master Bucket';
+                $actionData['bucket_name'] = $bucketName;
+                $this->user_action_log($actionData);
+                
                 $message = "'$bucketName' Bucket updated successfully!";
                 flash($message);
                 return Redirect::to("list-master-buckets");
             }
+		  }
+		  
+		  catch (\Aws\S3\Exception\S3Exception $e)  {
+				$message = $e->getMessage();
+				$errorMessage = 'There is some error while updating master Bucket. Please try again later!'; 
+				flash($errorMessage, "danger");
+				return Redirect::to('list-master-buckets');
+			   }
+			   
         }else{
             $currentBucketDetails = MasterBuckets::findOrFail($id);
             $activeConfigId = $this->getActiveConfig();
@@ -180,7 +228,6 @@ class MasterBucketsController extends Controller
     public function deleteMasterBucket($bucketID)
     {
         if(!empty($bucketID)){
-//            unlink(public_path('bucket_data').DIRECTORY_SEPARATOR.$masterBucketID);
             $whereArray = array('bucket_id'=>$bucketID);
             //delete files from DB
             BucketFiles::where($whereArray)->delete();
@@ -188,7 +235,19 @@ class MasterBucketsController extends Controller
             BucketFolders::where($whereArray)->delete();
 
             $whereArray = array('id'=>$bucketID);
+            $master_bucket_details = MasterBuckets::where($whereArray)->get();
+            $bucketName = $master_bucket_details[0]->bucket_name;
+            
             MasterBuckets::where($whereArray)->delete();
+            
+            $awsId = $this->getAwsID();
+            //For Log Action
+            $actionData['user_id'] = Auth::user()->id;
+            $actionData['aws_id'] = $awsId;
+            $actionData['action_performed'] = 'Delete Master Bucket';
+            $actionData['bucket_name'] = $bucketName;
+            $this->user_action_log($actionData);
+            
             flash('Bucket deleted successfully!');
             return redirect('/list-master-buckets');
         }
@@ -201,17 +260,27 @@ class MasterBucketsController extends Controller
     */
     public function copyMasterBucket(Request $request){
         if(!empty($_POST['aws_server_id']) && !empty($_POST['master_bucket_id'])){
+		
             $masterBucketID = $request->input('master_bucket_id');
             $awsServerID = $request->input('aws_server_id');
             $awsServerName = $request->input('aws_server_name');
-            //existing master bucket record
             $existRecord = MasterBuckets::find($masterBucketID);
             $checkBucketExist = MasterBuckets::where('bucket_name', "=", $existRecord->bucket_name)->where('aws_server_id', "=", $awsServerID)->first();
 
             if(empty($checkBucketExist)){
+				try {
                 $new = $existRecord->replicate();
                 $new->aws_server_id = $awsServerID;
                 $new->save();
+                
+                $awsId = $this->getAwsID();
+                //For Log Action
+                $actionData['user_id'] = Auth::user()->id;
+                $actionData['aws_id'] = $awsId;
+                $actionData['action_performed'] = 'Copy Master Bucket';
+                $actionData['bucket_name'] = $existRecord->bucket_name;
+                $this->user_action_log($actionData);
+                
                 //return with flash message
                 $message = "Master bucket successfully copy to $awsServerName!";
                 flash($message);
@@ -220,6 +289,18 @@ class MasterBucketsController extends Controller
                     'message' => $message,
                 );
                 return json_encode($return);
+				}
+				catch(Exception $e){
+                    //return response
+                    $return = array(
+                        'value' => '100',
+                        'type' => 'error',
+                        'message' => $e->getMessage(),
+                    );
+                    return json_encode($return);
+                }
+				
+				
             }else{
                 //return with flash message
                 $message = "Master bucket already exist in AWS: $awsServerName!";
@@ -229,6 +310,7 @@ class MasterBucketsController extends Controller
                 );
                 return json_encode($return);
             }
+			
         }else{
             $message = "There is some error in your parameters, please check and try again later!";
             //return response
@@ -248,6 +330,7 @@ class MasterBucketsController extends Controller
     public function uploadMasterFiles($bucketId, $folderIN= null)
     {
         if(!empty($folderIN)){
+			try {
             $getCurrentFolderName = explode('/',$folderIN);
             $folderName = end($getCurrentFolderName);
 
@@ -259,7 +342,16 @@ class MasterBucketsController extends Controller
             //if in folder, then get files of folder
             $bucketFiles = BucketFiles::where('bucket_id', "=", $bucketId)->where('folder_id', '=', $folderID)->get();
             $bucketFolders = BucketFolders::where('bucket_id', "=", $bucketId)->where('parent_folder', '!=', 0)->where('parent_folder', '=', $folderID)->where('folder_name', '!=', $folderName)->get();
-        }else{
+            
+            
+			}
+			catch (\Aws\S3\Exception\S3Exception $e)  {
+				$message = $e->getMessage();
+				$errorMessage = 'There is some error while copying master Bucket. Please try again later!'; 
+				flash($errorMessage, "danger");
+				return Redirect::to('list-master-buckets');
+			   }
+		}else{
             $folderID = '';
             $folderName = '';
             //if at root, then show files and folder for the same
@@ -267,6 +359,18 @@ class MasterBucketsController extends Controller
             $bucketFolders = BucketFolders::where('bucket_id', "=", $bucketId)->where('parent_folder', '=', 0)->get();
         }
         return view('adminsOnly.masterBuckets.upload', compact('bucketId', 'folderIN', 'folderID', 'folderName', 'bucketFiles', 'bucketFolders'));
+    }
+    public function user_action_log($actionData) {
+        $user = new UserActionlog;
+        $user_id = $actionData['user_id'];
+        $aws_id = $actionData['aws_id'];
+        $action_performed = $actionData['action_performed'];
+        $bucket_name = $actionData['bucket_name'];
+        $user->user_id = $user_id;
+        $user->aws_id = $aws_id;
+        $user->bucket_name = $bucket_name;
+        $user->action_performed = $action_performed;
+        $user->save();
     }
 
 }

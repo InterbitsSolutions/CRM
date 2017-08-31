@@ -3,7 +3,6 @@ namespace App\Http\Controllers;
 use App\ConfigAuth;
 use Aws\S3\S3Client;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Input;
 use Illuminate\Support\Facades\Redirect;
@@ -14,12 +13,10 @@ class ConfigAuthController extends Controller
     public function __construct()
     {
         $this->middleware('auth');
-        $this->middleware('super_admin');
     }
     /*
      * function to add config credentials
      * created by BK
-     * created on 2nd May'17
      */
     public function addConfig()
     {
@@ -61,7 +58,6 @@ class ConfigAuthController extends Controller
     /*
     * function to edit config credentials
     * created by BK
-    * created on 5th May'17
     */
     public function editConfig($id)
     {
@@ -89,7 +85,6 @@ class ConfigAuthController extends Controller
    /*
    * function to list config credentials
    * created by BK
-   * created on 2nd May'17
    */
     public function listConfig()
     {
@@ -100,7 +95,6 @@ class ConfigAuthController extends Controller
     /*
     * function to delete config credentials
     * created by BK
-    * created on 5th May'17
     */
     public function deleteConfig($id)
     {
@@ -112,7 +106,6 @@ class ConfigAuthController extends Controller
     /*
      * function to active config credentials
      * created by BK
-     * created on 6th May'17
      */
     public function updateStatus($recordID, $status)
     {
@@ -139,7 +132,7 @@ class ConfigAuthController extends Controller
             ]);
             try{
                 //get list of all buckets and check if bucket name already exist
-                $contents = $s3client->listBuckets();
+                $s3client->listBuckets();
                 //if status is active or inactive
                 if($status=='active'){ ConfigAuth::query()->update(['status' => 'inactive']); }
                 $configAuth->status  = $status;
@@ -157,7 +150,6 @@ class ConfigAuthController extends Controller
     /*
     * function to active config credentials selected by combo box
     * created by BK
-    * created on 29th June'17
     */
     public function activateConfig($recordID)
     {
@@ -167,6 +159,8 @@ class ConfigAuthController extends Controller
             $bucketKey = $configAuth->key;
             $bucketSecret = $configAuth->secret;
             $awsName = $configAuth->aws_name;
+            $awsId = $configAuth->id;
+			
             //create object of selected AWS network
             $s3client = new S3Client([
                 'version'     => 'latest',
@@ -179,10 +173,7 @@ class ConfigAuthController extends Controller
             try{
                 //get list of all buckets and check if bucket name already exist
                 $contents = $s3client->listBuckets();
-                //if status is active or inactive
-                ConfigAuth::query()->update(['status' => 'inactive']);
-                $configAuth->status  = 'active';
-                $configAuth->save();
+				session()->put('awsId', $awsId);
                 flash('AWS server switch successfully!');
                 //return response
                 $return = array(
@@ -200,7 +191,6 @@ class ConfigAuthController extends Controller
                 return json_encode($return);
             }
         }else{
-            //return response
             $return = array(
                 'type' => 'error',
                 'message' => 'There is some error in params, please try again later!',
@@ -211,7 +201,6 @@ class ConfigAuthController extends Controller
     /*
     * function to manage Primary Network
     * created by BK
-    * created on 11th July'17
     */
     public function updatePrimaryNetwork($recordID, $status)
     {

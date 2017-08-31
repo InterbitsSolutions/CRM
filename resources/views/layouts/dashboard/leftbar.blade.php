@@ -5,9 +5,9 @@
                 <div><img src="{{ URL::asset('/') }}assests/plugins/images/users/admin.png" alt="user-img" class="img-circle"></div>
                 <a href="#" class="dropdown-toggle u-dropdown" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"><?php echo ucwords($login_user_display_name)?> <span class="caret"></span></a>
                 <ul class="dropdown-menu animated flipInY">
-                    <?php if(Auth::user()->role == 1) {?>
+                    <?php //if(Auth::user()->role == 1) {?>
                     <li><a href="{{ url('/update-password') }}"><i class="ti-settings"></i> Update Password</a></li> 
-                    <?php } ?> 
+                    <?php //} ?> 
                     <li role="separator" class="divider"></li>
                     <li><a href="{{ url('/logout') }}" data-method="post" data-token="{{ csrf_token() }}"><i class="fa fa-power-off"></i> Logout</a></li>
                 </ul>
@@ -30,7 +30,7 @@
         <!--bucket menu-->
 
         @foreach($assigned_modules as $modules)
-            @if($modules->module_name == 'Bucket')
+            @if($modules->module_name == 'Buckets')
             <li>
                 <a href="#" class="waves-effect">
                     <i class="icon-handbag fa-fw" data-icon="v"></i>
@@ -41,7 +41,19 @@
                     <li> <a href="{{ url('/buckets') }}">Buckets</a> </li>
                     <li> <a href="#" data-toggle="modal" data-target="#master_bucket_dialog" target="_blank" onclick="$('#bucket_name').val('')">Add Bucket</a> </li>
                     <li> <a href="{{ url('/multiple-buckets') }}">Multiple Buckets</a> </li>
-                    <li> <a href="{{ url('/list-master-buckets') }}">Master Buckets</a> </li>
+                </ul>
+            </li>
+            @endif           
+            
+            @if($modules->module_name == 'Master Bucket')
+            <li>
+                <a href="#" class="waves-effect">
+                    <i class="fa fa-retweet" data-icon="v"></i>
+                    <span class="hide-menu"> Master Bucket </span>
+                    <span class="fa arrow"></span>
+                </a>
+                <ul class="nav nav-second-level">
+                    <li> <a href="{{ url('/list-master-buckets') }}">Master Bucket</a> </li>
                     <li> <a href="{{ url('/manage-bucket-fields') }}">Manage Bucket Fields</a> </li>
                 </ul>
             </li>
@@ -84,8 +96,9 @@
                     <span class="fa arrow"></span>
                 </a>
                 <ul class="nav nav-second-level">
-                    <li> <a href="{{ url('/add-template') }}">Add Templates</a> </li>
-                    <li> <a href="{{ url('/list-crm-templates') }}" >View Templates</a> </li>
+					<li> <a href="{{ url('/add-template') }}">Add Templates</a> </li>
+					<li> <a href="{{ url('/list-crm-templates') }}" >View Templates</a> </li>
+					<li> <a href="{{ url('/export-template') }}" >Export Templates</a> </li>
                 </ul>
             </li>
             @endif
@@ -122,10 +135,11 @@
                     <span class="fa arrow"></span>
                 </a>
                 <ul class="nav nav-second-level">
-                    <li> <a href="{{ url('/add-user') }}">Add User</a> </li>
-                     <li> <a href="{{ url('/list-user') }}">View User</a> </li>
+                    <li> <a href="{{ url('/add-users') }}">Add User</a> </li>
+                    <li> <a href="{{ url('/list-users') }}">View User</a> </li>
                     <li> <a href="{{ url('/add-user-role') }}">Add Role</a> </li>
                     <li> <a href="{{ url('/list-user-roles') }}" >View Roles</a> </li>
+					     <li> <a href="{{ url('/user-log') }}" >User Log</a> </li>
                 </ul>
             </li>
             @endif
@@ -229,6 +243,7 @@
 <div id="master_bucket_dialog" class="modal fade" role="dialog">
     <div class="modal-dialog">
         <form name="child_bucket_form" id="child_bucket_form" action="{{ url('/add-bucket') }}" method="post">
+		<input type="hidden" value="<?php echo $awsId ?>" name ="awsId" id="awsId"/>
             <!-- Modal content-->
             <div class="modal-content form-group">
                 <div class="modal-header">
@@ -262,6 +277,7 @@
         $(document).on('click','#addBucket',function(){
             var bucketName = $('#bucket_name').val();
             var bucketRegion = $('#bucket_region').val();
+            var awsId = $('#awsId').val();
             var bucketShortCode = $('#bucket_short_code').val();
             var passToken = $('#pass_token').val();
             var url = '{{ url('/add-bucket') }}';
@@ -310,6 +326,7 @@
                     data: {
                         '_token': passToken,
                         'bucket_name': bucketName,
+                        'awsId': awsId,
                         'bucket_region': bucketRegion,
                         'bucket_short_code': bucketShortCode
                     },
@@ -334,6 +351,7 @@
     $(document).ready(function($){
         $(document).on('click','#addChildBucket',function(){
             var masterBucket = $('#master_child_bucket').val();
+           var awsId = $('#awsId').val();
             var passToken = $('#pass_token').val();
             var url = '{{ url('/create-child-bucket') }}';
                     {{--var successRedirect = '{{ url('/list-child-buckets') }}';--}}
@@ -373,6 +391,7 @@
                     data: {
                         '_token': passToken,
                         'master_bucket': masterBucket,
+                        'awsId': awsId,
                     },
                     success:function(data){
                         $('#overlay').hide();
